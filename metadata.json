@@ -1,0 +1,6 @@
+{
+  "name": "PriceProof",
+  "description": "Reveal the real cost of online shopping with transparent, multi-provider total-cost price comparisons.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
