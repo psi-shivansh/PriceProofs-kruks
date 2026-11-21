@@ -87,6 +87,31 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   const resolveProductFromUrl = (raw: string): string => {
     const lower = raw.toLowerCase();
+    if (lower.includes('s24') || (lower.includes('samsung') && lower.includes('ultra')))
+      return 'samsung-s24-ultra-256';
+    if (lower.includes('a55') || lower.includes('samsung'))
+      return 'samsung-galaxy-a55-5g';
+    if (lower.includes('nothing') || lower.includes('2a'))
+      return 'nothing-phone-2a-plus';
+    if (lower.includes('x200')) return 'vivo-x200-pro-5g';
+    if (lower.includes('v40') || lower.includes('vivo')) return 'vivo-v40-pro-5g';
+    if (lower.includes('oppo') || lower.includes('reno')) return 'oppo-reno12-pro-5g';
+    if (lower.includes('loq') || lower.includes('lenovo')) return 'lenovo-loq-15-rtx4050';
+    if (lower.includes('victus') || lower.includes('hp.com')) return 'hp-victus-15-rtx4060';
+    if (
+      lower.includes('logitech') ||
+      lower.includes('superlight') ||
+      lower.includes('mouse') ||
+      lower.includes('mdcomputers')
+    )
+      return 'logitech-g-pro-x-superlight-2';
+    if (
+      lower.includes('razer') ||
+      lower.includes('blackwidow') ||
+      lower.includes('keyboard') ||
+      lower.includes('elitehubs')
+    )
+      return 'razer-blackwidow-v4-x-mech';
     if (
       lower.includes('nike') ||
       lower.includes('myntra') ||
@@ -275,12 +300,13 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     POPULAR:
                   </span>
                   {[
+                    { id: 'samsung-s24-ultra-256', label: 'Galaxy S24 Ultra' },
+                    { id: 'nothing-phone-2a-plus', label: 'Nothing (2a) Plus' },
+                    { id: 'lenovo-loq-15-rtx4050', label: 'Lenovo LOQ 15' },
+                    { id: 'hp-victus-15-rtx4060', label: 'HP Victus 16' },
+                    { id: 'logitech-g-pro-x-superlight-2', label: 'Logitech Superlight 2' },
                     { id: 'nike-air-force-1-white', label: 'Nike Air Force 1' },
                     { id: 'wakefit-orthopedic-mattress', label: 'Wakefit Mattress' },
-                    { id: 'forest-essentials-soundarya-cream', label: 'Forest Essentials' },
-                    { id: 'on-gold-standard-whey-5lb', label: 'ON Whey 2.27 kg' },
-                    { id: 'iphone-16-pro-256', label: 'iPhone 16 Pro' },
-                    { id: 'macbook-pro-16-m4', label: 'MacBook Pro 16"' },
                   ].map((item) => (
                     <button
                       key={item.id}
@@ -430,38 +456,38 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <button
                 type="button"
                 onClick={(e) =>
+                  handleAnalyseLink(e, 'https://www.flipkart.com/lenovo-loq-rtx-4050')
+                }
+                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
+              >
+                flipkart.com/lenovo-loq-15
+              </button>
+              <button
+                type="button"
+                onClick={(e) =>
+                  handleAnalyseLink(e, 'https://www.samsung.com/in/galaxy-s24-ultra')
+                }
+                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
+              >
+                samsung.com/s24-ultra
+              </button>
+              <button
+                type="button"
+                onClick={(e) =>
+                  handleAnalyseLink(e, 'https://elitehubs.com/logitech-g-pro-x-superlight-2')
+                }
+                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
+              >
+                elitehubs.com/superlight-2
+              </button>
+              <button
+                type="button"
+                onClick={(e) =>
                   handleAnalyseLink(e, 'https://www.myntra.com/nike-air-force-1')
                 }
                 className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
               >
                 myntra.com/nike-air-force-1
-              </button>
-              <button
-                type="button"
-                onClick={(e) =>
-                  handleAnalyseLink(e, 'https://www.wakefit.co/mattress/orthopaedic-memory-foam-mattress')
-                }
-                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
-              >
-                wakefit.co/ortho-mattress
-              </button>
-              <button
-                type="button"
-                onClick={(e) =>
-                  handleAnalyseLink(e, 'https://www.healthkart.com/optimum-nutrition-whey-5lb')
-                }
-                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
-              >
-                healthkart.com/on-whey-5lb
-              </button>
-              <button
-                type="button"
-                onClick={(e) =>
-                  handleAnalyseLink(e, 'https://www.amazon.in/dp/iphone-16-pro-256gb')
-                }
-                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
-              >
-                amazon.in/iphone-16-pro
               </button>
             </div>
           )}
@@ -610,12 +636,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
           >
             {[
+              CATALOG_PRODUCTS.find((p) => p.id === 'samsung-s24-ultra-256'),
+              CATALOG_PRODUCTS.find((p) => p.id === 'lenovo-loq-15-rtx4050'),
+              CATALOG_PRODUCTS.find((p) => p.id === 'hp-victus-15-rtx4060'),
+              CATALOG_PRODUCTS.find((p) => p.id === 'logitech-g-pro-x-superlight-2'),
               CATALOG_PRODUCTS.find((p) => p.id === 'nike-air-force-1-white'),
               CATALOG_PRODUCTS.find((p) => p.id === 'wakefit-orthopedic-mattress'),
-              CATALOG_PRODUCTS.find((p) => p.id === 'on-gold-standard-whey-5lb'),
-              CATALOG_PRODUCTS.find((p) => p.id === 'forest-essentials-soundarya-cream'),
-              CATALOG_PRODUCTS.find((p) => p.id === 'macbook-pro-16-m4'),
-              CATALOG_PRODUCTS.find((p) => p.id === 'iphone-16-pro-256'),
             ]
               .filter((p): p is (typeof CATALOG_PRODUCTS)[number] => Boolean(p))
               .map((product) => {

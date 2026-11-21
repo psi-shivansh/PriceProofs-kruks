@@ -16,6 +16,10 @@ import sneakersImg from '../assets/images/product_sneakers_studio_1795284534944.
 import skincareImg from '../assets/images/product_skincare_studio_1795284540823.jpg';
 import mattressImg from '../assets/images/product_mattress_studio_1795284545069.jpg';
 import fitnessImg from '../assets/images/product_fitness_studio_1795284535016.jpg';
+import {
+  EXPANDED_CATALOG_PRODUCTS,
+  EXPANDED_STUDIO_IMAGES,
+} from './expandedCatalogProducts.ts';
 
 export type PaymentBank = 'NONE' | 'HDFC' | 'ICICI' | 'SBI' | 'AXIS' | 'UPI';
 export type PaymentMode = 'FULL' | 'EMI';
@@ -189,10 +193,10 @@ export const STUDIO_IMAGES = {
 } as const;
 
 export const SEARCH_PLACEHOLDERS = [
+  'Total cost of Samsung S24 Ultra vs Nothing Phone (2a) Plus?',
+  'Lenovo LOQ vs HP Victus — hidden checkout fees on Flipkart?',
+  'Logitech G Pro X Superlight 2 on Amazon vs EliteHubs?',
   'Total cost of Nike Air Force 1 across Myntra, Ajio & Nike?',
-  'Wakefit 100-night mattress trial vs Amazon return rules?',
-  'Hidden fees on ON Whey Protein (HealthKart vs Flipkart)?',
-  'Total cost of iPhone 16 Pro across all Indian stores?',
 ];
 
 export interface CategoryTile {
@@ -204,12 +208,13 @@ export interface CategoryTile {
 }
 
 export const CATEGORY_TILES: CategoryTile[] = [
+  { id: 'smartphones', name: 'Smartphones', count: 42, image: EXPANDED_STUDIO_IMAGES.androidFlagship, avgHiddenFee: '₹798 avg fees' },
+  { id: 'laptops', name: 'Laptops & Gaming', count: 35, image: EXPANDED_STUDIO_IMAGES.gamingLaptop, avgHiddenFee: '₹1,490 avg fees' },
+  { id: 'peripherals', name: 'Gaming Peripherals', count: 28, image: EXPANDED_STUDIO_IMAGES.gamingKeyboard, avgHiddenFee: '₹465 avg fees' },
   { id: 'footwear', name: 'Sneakers & Footwear', count: 31, image: STUDIO_IMAGES.sneakers, avgHiddenFee: '₹495 avg fees' },
   { id: 'furniture', name: 'Home & Mattresses', count: 19, image: STUDIO_IMAGES.mattress, avgHiddenFee: '₹1,690 avg fees' },
   { id: 'beauty', name: 'Beauty & Skincare', count: 29, image: STUDIO_IMAGES.skincare, avgHiddenFee: '₹189 avg fees' },
   { id: 'fitness', name: 'Fitness & Nutrition', count: 26, image: STUDIO_IMAGES.fitness, avgHiddenFee: '₹340 avg fees' },
-  { id: 'laptops', name: 'Laptops', count: 27, image: STUDIO_IMAGES.macbook, avgHiddenFee: '₹1,490 avg fees' },
-  { id: 'smartphones', name: 'Smartphones', count: 34, image: STUDIO_IMAGES.iphone, avgHiddenFee: '₹798 avg fees' },
   { id: 'audio', name: 'Headphones & Audio', count: 22, image: STUDIO_IMAGES.headphones, avgHiddenFee: '₹640 avg fees' },
   { id: 'wearables', name: 'Wearables', count: 18, image: STUDIO_IMAGES.watch, avgHiddenFee: '₹490 avg fees' },
   { id: 'cameras', name: 'Cameras & Optics', count: 15, image: STUDIO_IMAGES.camera, avgHiddenFee: '₹1,850 avg fees' },
@@ -229,36 +234,36 @@ export interface MegaMenuCategory {
 export const MEGA_MENU_CATEGORIES: MegaMenuCategory[] = [
   {
     id: 'electronics',
-    label: 'Electronics & Computing',
+    label: 'Phones, Gaming & Tech',
     groups: [
       {
-        heading: 'COMPUTING',
-        totalCount: 27,
+        heading: 'SMARTPHONES (MID-RANGE & FLAGSHIP)',
+        totalCount: 42,
         items: [
-          { label: 'Pro Laptops & Workstations', categoryId: 'laptops', productId: 'macbook-pro-16-m4' },
-          { label: 'Ultrabooks & Thin-and-Light', categoryId: 'laptops' },
-          { label: 'Gaming Laptops', categoryId: 'laptops' },
-          { label: 'Monitors & Displays', categoryId: 'laptops' },
+          { label: 'Samsung S24 Ultra & Galaxy A55', categoryId: 'smartphones', productId: 'samsung-s24-ultra-256' },
+          { label: 'Nothing Phone (2a) Plus 5G', categoryId: 'smartphones', productId: 'nothing-phone-2a-plus' },
+          { label: 'vivo X200 Pro & V40 Pro 5G', categoryId: 'smartphones', productId: 'vivo-v40-pro-5g' },
+          { label: 'OPPO Reno12 Pro & iPhone 16 Pro', categoryId: 'smartphones', productId: 'oppo-reno12-pro-5g' },
         ],
       },
       {
-        heading: 'MOBILE & AUDIO',
-        totalCount: 34,
+        heading: 'GAMING & PRO LAPTOPS',
+        totalCount: 35,
         items: [
-          { label: 'Flagship Smartphones', categoryId: 'smartphones', productId: 'iphone-16-pro-256' },
-          { label: 'ANC Headphones', categoryId: 'audio', productId: 'sony-wh1000xm5' },
-          { label: 'True Wireless Earbuds', categoryId: 'audio' },
-          { label: 'DACs & Studio Audio', categoryId: 'audio' },
+          { label: 'Lenovo LOQ 15IAX9 (RTX 4050)', categoryId: 'laptops', productId: 'lenovo-loq-15-rtx4050' },
+          { label: 'HP Victus 16 (Ryzen 7 · RTX 4060)', categoryId: 'laptops', productId: 'hp-victus-15-rtx4060' },
+          { label: 'MacBook Pro 16" (M4 Pro)', categoryId: 'laptops', productId: 'macbook-pro-16-m4' },
+          { label: 'All Audited Laptops', categoryId: 'laptops' },
         ],
       },
       {
-        heading: 'IMAGING & WEARABLES',
-        totalCount: 19,
+        heading: 'GAMING GEAR, AUDIO & OPTICS',
+        totalCount: 47,
         items: [
-          { label: 'Mirrorless Cameras', categoryId: 'cameras', productId: 'fujifilm-xt5-kit' },
-          { label: 'GPS & Titanium Watches', categoryId: 'wearables', productId: 'garmin-fenix-8' },
-          { label: 'Prime Lenses', categoryId: 'cameras' },
-          { label: 'Action Cameras', categoryId: 'cameras' },
+          { label: 'Logitech G Pro X Superlight 2 Mouse', categoryId: 'peripherals', productId: 'logitech-g-pro-x-superlight-2' },
+          { label: 'Razer BlackWidow V4 X Keyboard', categoryId: 'peripherals', productId: 'razer-blackwidow-v4-x-mech' },
+          { label: 'Sony WH-1000XM5 ANC Headphones', categoryId: 'audio', productId: 'sony-wh1000xm5' },
+          { label: 'Cameras & Titanium Watches', categoryId: 'cameras', productId: 'fujifilm-xt5-kit' },
         ],
       },
     ],
@@ -379,6 +384,11 @@ export const INDIAN_STORES_DIRECTORY = [
   { id: 'croma', name: 'Croma', shortCode: 'CR', avgFeeDrag: '₹249', typicalReturn: '7d Unopened / DOA Check', trustAvg: 85 },
   { id: 'reliance', name: 'Reliance Digital', shortCode: 'RD', avgFeeDrag: '₹349', typicalReturn: '7d DOA Replacement Only', trustAvg: 79 },
   { id: 'jiomart', name: 'JioMart', shortCode: 'JM', avgFeeDrag: '₹499', typicalReturn: '7d Replacement (Strict)', trustAvg: 71 },
+  { id: 'samsung', name: 'Samsung Shop India', shortCode: 'SM', avgFeeDrag: '₹0', typicalReturn: '14d Direct Brand DOA Pickup', trustAvg: 93 },
+  { id: 'lenovo', name: 'Lenovo India Direct', shortCode: 'LN', avgFeeDrag: '₹0', typicalReturn: '14d Direct Brand + Onsite', trustAvg: 93 },
+  { id: 'hp', name: 'HP India Store', shortCode: 'HP', avgFeeDrag: '₹0', typicalReturn: '14d Direct Brand Support', trustAvg: 93 },
+  { id: 'elitehubs', name: 'EliteHubs', shortCode: 'EH', avgFeeDrag: '₹465', typicalReturn: '3d DOA (Unboxing Video Req.)', trustAvg: 79 },
+  { id: 'mdcomputers', name: 'MDComputers', shortCode: 'MD', avgFeeDrag: '₹522', typicalReturn: '3d DOA Replacement Only', trustAvg: 74 },
   { id: 'vijaysales', name: 'Vijay Sales', shortCode: 'VS', avgFeeDrag: '₹199', typicalReturn: '7d Sealed Box Only', trustAvg: 81 },
   { id: 'tatacliq', name: 'Tata CLiQ', shortCode: 'TC', avgFeeDrag: '₹299', typicalReturn: '7–10d Brand Verification', trustAvg: 84 },
 ];
@@ -3413,6 +3423,7 @@ export const CATALOG_PRODUCTS: CatalogProduct[] = [
       },
     ],
   },
+  ...EXPANDED_CATALOG_PRODUCTS,
 ];
 
 const METRO_PINCODE_PREFIXES = ['11', '40', '56', '60', '50', '70', '41', '38', '12', '20'];
