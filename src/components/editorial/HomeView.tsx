@@ -87,6 +87,37 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
   const resolveProductFromUrl = (raw: string): string => {
     const lower = raw.toLowerCase();
+    if (
+      lower.includes('nike') ||
+      lower.includes('myntra') ||
+      lower.includes('ajio') ||
+      lower.includes('sneaker') ||
+      lower.includes('shoe') ||
+      lower.includes('air-force')
+    )
+      return 'nike-air-force-1-white';
+    if (
+      lower.includes('wakefit') ||
+      lower.includes('mattress') ||
+      lower.includes('pepperfry') ||
+      lower.includes('bed')
+    )
+      return 'wakefit-orthopedic-mattress';
+    if (
+      lower.includes('nykaa') ||
+      lower.includes('forest') ||
+      lower.includes('soundarya') ||
+      lower.includes('cream') ||
+      lower.includes('skincare')
+    )
+      return 'forest-essentials-soundarya-cream';
+    if (
+      lower.includes('whey') ||
+      lower.includes('protein') ||
+      lower.includes('healthkart') ||
+      lower.includes('optimum')
+    )
+      return 'on-gold-standard-whey-5lb';
     if (lower.includes('iphone')) return 'iphone-16-pro-256';
     if (lower.includes('sony') || lower.includes('xm5') || lower.includes('headphone'))
       return 'sony-wh1000xm5';
@@ -104,7 +135,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
     const targetUrl = (overrideUrl ?? pastedUrl).trim();
     if (!targetUrl) {
       setUrlError(
-        'Paste an Amazon.in, Flipkart, Croma, or JioMart product link — or try a sample below.'
+        'Paste an Amazon.in, Flipkart, Myntra, Nykaa, Wakefit, or HealthKart link — or try a sample below.'
       );
       return;
     }
@@ -244,10 +275,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
                     POPULAR:
                   </span>
                   {[
-                    { id: 'macbook-pro-16-m4', label: 'MacBook Pro 16"' },
+                    { id: 'nike-air-force-1-white', label: 'Nike Air Force 1' },
+                    { id: 'wakefit-orthopedic-mattress', label: 'Wakefit Mattress' },
+                    { id: 'forest-essentials-soundarya-cream', label: 'Forest Essentials' },
+                    { id: 'on-gold-standard-whey-5lb', label: 'ON Whey 2.27 kg' },
                     { id: 'iphone-16-pro-256', label: 'iPhone 16 Pro' },
-                    { id: 'sony-wh1000xm5', label: 'Sony WH-1000XM5' },
-                    { id: 'breville-barista-express', label: 'Espresso Machine' },
+                    { id: 'macbook-pro-16-m4', label: 'MacBook Pro 16"' },
                   ].map((item) => (
                     <button
                       key={item.id}
@@ -397,11 +430,29 @@ export const HomeView: React.FC<HomeViewProps> = ({
               <button
                 type="button"
                 onClick={(e) =>
-                  handleAnalyseLink(e, 'https://www.flipkart.com/apple-macbook-pro-16-m4-pro')
+                  handleAnalyseLink(e, 'https://www.myntra.com/nike-air-force-1')
                 }
                 className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
               >
-                flipkart.com/macbook-pro-16
+                myntra.com/nike-air-force-1
+              </button>
+              <button
+                type="button"
+                onClick={(e) =>
+                  handleAnalyseLink(e, 'https://www.wakefit.co/mattress/orthopaedic-memory-foam-mattress')
+                }
+                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
+              >
+                wakefit.co/ortho-mattress
+              </button>
+              <button
+                type="button"
+                onClick={(e) =>
+                  handleAnalyseLink(e, 'https://www.healthkart.com/optimum-nutrition-whey-5lb')
+                }
+                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
+              >
+                healthkart.com/on-whey-5lb
               </button>
               <button
                 type="button"
@@ -411,15 +462,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
                 className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
               >
                 amazon.in/iphone-16-pro
-              </button>
-              <button
-                type="button"
-                onClick={(e) =>
-                  handleAnalyseLink(e, 'https://www.croma.com/sony-wh-1000xm5-anc')
-                }
-                className="text-[#855400] hover:text-[#241E14] underline underline-offset-4 cursor-pointer"
-              >
-                croma.com/sony-wh-1000xm5
               </button>
             </div>
           )}
@@ -567,7 +609,16 @@ export const HomeView: React.FC<HomeViewProps> = ({
             ref={gapsScrollRef}
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5"
           >
-            {CATALOG_PRODUCTS.slice(0, 3).map((product) => {
+            {[
+              CATALOG_PRODUCTS.find((p) => p.id === 'nike-air-force-1-white'),
+              CATALOG_PRODUCTS.find((p) => p.id === 'wakefit-orthopedic-mattress'),
+              CATALOG_PRODUCTS.find((p) => p.id === 'on-gold-standard-whey-5lb'),
+              CATALOG_PRODUCTS.find((p) => p.id === 'forest-essentials-soundarya-cream'),
+              CATALOG_PRODUCTS.find((p) => p.id === 'macbook-pro-16-m4'),
+              CATALOG_PRODUCTS.find((p) => p.id === 'iphone-16-pro-256'),
+            ]
+              .filter((p): p is (typeof CATALOG_PRODUCTS)[number] => Boolean(p))
+              .map((product) => {
               const { lowest, highest, spread } = getProductSpread(product, prefs);
               const spreadPct = Math.min(
                 100,

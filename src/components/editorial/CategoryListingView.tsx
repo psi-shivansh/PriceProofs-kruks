@@ -180,7 +180,7 @@ export const CategoryListingView: React.FC<CategoryListingViewProps> = ({
                     : 'bg-[#FEF0B8] text-[#855400] border-[#E6D496] hover:border-[#F5B800] hover:bg-[#F5B800] hover:text-[#241E14]'
                 }`}
               >
-                Store Audits (8)
+                Store Audits ({INDIAN_STORES_DIRECTORY.length})
               </button>
             </div>
 
