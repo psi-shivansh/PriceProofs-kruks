@@ -11,6 +11,8 @@ import { OfferCard } from './components/OfferCard.tsx';
 import { FeeBreakdownModal } from './components/FeeBreakdownModal.tsx';
 import { ComparisonMatrix } from './components/ComparisonMatrix.tsx';
 import { ProviderDiagnosticsModal } from './components/ProviderDiagnosticsModal.tsx';
+import { JudgePitchModal } from './components/JudgePitchModal.tsx';
+import { PriceProofChatbot } from './components/PriceProofChatbot.tsx';
 import { EmptyState } from './components/EmptyState.tsx';
 import { EducationalSection } from './components/EducationalSection.tsx';
 import {
@@ -50,6 +52,7 @@ export default function App() {
   const [selectedForCompareIds, setSelectedForCompareIds] = useState<string[]>([]);
   const [isCompareMatrixOpen, setIsCompareMatrixOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
+  const [isJudgePitchOpen, setIsJudgePitchOpen] = useState(false);
 
   // Filters & Sorting
   const [sortBy, setSortBy] = useState<SortOption>('TOTAL_COST_ASC');
@@ -189,6 +192,7 @@ export default function App() {
       {/* Navbar */}
       <Navbar
         onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
+        onOpenJudgePitch={() => setIsJudgePitchOpen(true)}
         diagnostics={diagnostics}
         totalOffers={searchResponse?.totalOffers || 0}
       />
@@ -411,6 +415,21 @@ export default function App() {
           onClose={() => setIsDiagnosticsOpen(false)}
         />
       )}
+
+      {isJudgePitchOpen && (
+        <JudgePitchModal
+          onClose={() => setIsJudgePitchOpen(false)}
+          onSelectDemoSearch={(term) => handleSearch(term)}
+        />
+      )}
+
+      {/* Context-Aware Shopping Assistant Chatbot */}
+      <PriceProofChatbot
+        currentQuery={query}
+        searchResponse={searchResponse}
+        visibleOffers={processedProductGroups.flatMap((g) => g.offers)}
+        hasFloatingCompareButton={selectedForCompareIds.length > 0}
+      />
 
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-8 mt-16 text-center text-xs text-slate-400">

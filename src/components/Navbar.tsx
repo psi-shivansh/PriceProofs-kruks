@@ -4,12 +4,14 @@ import { ProviderDiagnostic } from '../types/product.ts';
 
 interface NavbarProps {
   onOpenDiagnostics: () => void;
+  onOpenJudgePitch: () => void;
   diagnostics: ProviderDiagnostic[];
   totalOffers: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenDiagnostics,
+  onOpenJudgePitch,
   diagnostics,
   totalOffers,
 }) => {
@@ -43,7 +45,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Right CTA & Diagnostics */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={onOpenJudgePitch}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 hover:border-emerald-400 text-xs text-emerald-300 font-semibold transition-all cursor-pointer shadow-sm shadow-emerald-500/10"
+            title="Pitch Guide, Demo Walkthrough & Hosting Links"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden sm:inline">Judges Pitch &</span> Demo Walkthrough
+          </button>
+
           <button
             onClick={onOpenDiagnostics}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/80 hover:bg-slate-850 hover:border-slate-700 text-xs text-slate-300 transition-all cursor-pointer"
@@ -56,14 +67,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               {activeProvidersCount} Active
             </span>
           </button>
-
-          <a
-            href="#why-real-cost"
-            className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-slate-200 transition-colors"
-          >
-            <Info className="w-3.5 h-3.5" />
-            <span>Why True Cost?</span>
-          </a>
         </div>
       </div>
     </header>

@@ -9,6 +9,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { globalProviderRegistry } from './src/providers/provider-registry.ts';
+import {
+  ChatHistoryMessage,
+  ChatProductContext,
+  formatGeminiError,
+  streamShoppingAssistantReply,
+} from './src/server/gemini.ts';
 
 dotenv.config();
 
@@ -19,7 +25,7 @@ const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 const isProduction = process.env.NODE_ENV === 'production';
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 // ---------------------------------------------------------------------------
 // REST API Endpoints
@@ -99,6 +105,72 @@ app.get('/api/search', async (req: Request, res: Response) => {
       error: 'Internal server error while processing price comparison search.',
       details: err.message,
     });
+  }
+});
+
+/**
+ * AI Shopping Assistant Chat Endpoint (SSE Streaming)
+ * POST /api/chat
+ */
+app.post('/api/chat', async (req: Request, res: Response) => {
+  const { message, history, context } = req.body as {
+    message?: unknown;
+    history?: ChatHistoryMessage[];
+    context?: ChatProductContext;
+  };
+
+  if (typeof message !== 'string' || message.trim().length === 0) {
+    res.status(400).json({
+      success: false,
+      error: 'Please enter a message before sending.',
+    });
+    return;
+  }
+
+  let clientClosed = false;
+  res.on('close', () => {
+    if (!res.writableEnded) {
+      clientClosed = true;
+    }
+  });
+
+  try {
+    const stream = await streamShoppingAssistantReply({
+      message: message.trim(),
+      history: Array.isArray(history) ? history : [],
+      context,
+    });
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    for await (const chunk of stream) {
+      if (clientClosed) break;
+      const chunkText = chunk.text;
+      if (chunkText) {
+        res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
+      }
+    }
+
+    if (!clientClosed) {
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    }
+  } catch (err: unknown) {
+    console.error('[Chat API Error]:', err);
+    const formatted = formatGeminiError(err);
+
+    if (!res.headersSent) {
+      res.status(formatted.status).json({
+        success: false,
+        error: formatted.message,
+      });
+    } else if (!clientClosed) {
+      res.write(`data: ${JSON.stringify({ error: formatted.message })}\n\n`);
+      res.end();
+    }
   }
 });
 
