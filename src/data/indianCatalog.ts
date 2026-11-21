@@ -4,6 +4,15 @@
  * pincode delivery zones, and real-world return/replacement policy distinctions.
  */
 
+import heroDeskImg from '../assets/images/hero_editorial_desk_1795280835210.jpg';
+import heroAudioImg from '../assets/images/hero_editorial_audio_1795280833230.jpg';
+import iphoneImg from '../assets/images/product_iphone_studio_1795280850269.jpg';
+import macbookImg from '../assets/images/product_macbook_studio_1795280833952.jpg';
+import headphonesImg from '../assets/images/product_headphones_studio_1795280834482.jpg';
+import watchImg from '../assets/images/product_watch_studio_1795280849907.jpg';
+import applianceImg from '../assets/images/product_appliance_studio_1795280833887.jpg';
+import cameraImg from '../assets/images/product_camera_studio_1795280833151.jpg';
+
 export type PaymentBank = 'NONE' | 'HDFC' | 'ICICI' | 'SBI' | 'AXIS' | 'UPI';
 export type PaymentMode = 'FULL' | 'EMI';
 export type SortKey = 'FINAL_PRICE' | 'FASTEST_DELIVERY' | 'BEST_RETURN' | 'FEWEST_HIDDEN_FEES';
@@ -161,14 +170,14 @@ export interface ComputedStoreOffer {
 }
 
 export const STUDIO_IMAGES = {
-  heroDesk: '/src/assets/images/hero_editorial_desk_1795280835210.jpg',
-  heroAudio: '/src/assets/images/hero_editorial_audio_1795280833230.jpg',
-  iphone: '/src/assets/images/product_iphone_studio_1795280850269.jpg',
-  macbook: '/src/assets/images/product_macbook_studio_1795280833952.jpg',
-  headphones: '/src/assets/images/product_headphones_studio_1795280834482.jpg',
-  watch: '/src/assets/images/product_watch_studio_1795280849907.jpg',
-  appliance: '/src/assets/images/product_appliance_studio_1795280833887.jpg',
-  camera: '/src/assets/images/product_camera_studio_1795280833151.jpg',
+  heroDesk: heroDeskImg,
+  heroAudio: heroAudioImg,
+  iphone: iphoneImg,
+  macbook: macbookImg,
+  headphones: headphonesImg,
+  watch: watchImg,
+  appliance: applianceImg,
+  camera: cameraImg,
 } as const;
 
 export const SEARCH_PLACEHOLDERS = [
