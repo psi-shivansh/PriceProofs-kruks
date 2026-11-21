@@ -1,416 +1,254 @@
 /**
- * PriceProof — Main Application Component
- * A Full-Stack Product Price Comparison Web App
+ * PriceProof — Editorial Store-Comparison & Price-Truth Web App (India / INR)
+ * Reveals the true final payable price and return/refund reality across Indian stores.
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Navbar } from './components/Navbar.tsx';
-import { SearchBar } from './components/SearchBar.tsx';
-import { FiltersAndSortBar } from './components/FiltersAndSortBar.tsx';
-import { OfferCard } from './components/OfferCard.tsx';
-import { FeeBreakdownModal } from './components/FeeBreakdownModal.tsx';
-import { ComparisonMatrix } from './components/ComparisonMatrix.tsx';
-import { ProviderDiagnosticsModal } from './components/ProviderDiagnosticsModal.tsx';
-import { JudgePitchModal } from './components/JudgePitchModal.tsx';
+import React, { useState, useEffect } from 'react';
+import { GlobalNav, AppView } from './components/editorial/GlobalNav.tsx';
+import { HomeView } from './components/editorial/HomeView.tsx';
+import { CategoryListingView } from './components/editorial/CategoryListingView.tsx';
+import { ProductComparisonView } from './components/editorial/ProductComparisonView.tsx';
 import { PriceProofChatbot } from './components/PriceProofChatbot.tsx';
-import { EmptyState } from './components/EmptyState.tsx';
-import { EducationalSection } from './components/EducationalSection.tsx';
+import { ProviderDiagnosticsModal } from './components/ProviderDiagnosticsModal.tsx';
 import {
-  Offer,
-  ProductGroup,
-  ProviderDiagnostic,
-  SearchResultResponse,
-  SortOption,
-} from './types/product.ts';
-import { formatINR } from './core/formatters.ts';
-import {
-  ShieldAlert,
-  Sparkles,
-  Info,
-  Clock,
-  Layers,
-  ChevronRight,
-  TrendingDown,
-  Scale,
-} from 'lucide-react';
+  CATALOG_PRODUCTS,
+  UserPricePreferences,
+} from './data/indianCatalog.ts';
+import { ProviderDiagnostic } from './types/product.ts';
+
+interface SavedPriceAlert {
+  productId: string;
+  productName: string;
+  targetPrice: number;
+}
 
 export default function App() {
-  const [query, setQuery] = useState('wireless headphones');
-  const [selectedProviders, setSelectedProviders] = useState<string[]>([
-    'demo_provider',
-    'dummyjson_live',
-    'amazon_paapi',
-    'flipkart_affiliate',
-  ]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [searchResponse, setSearchResponse] = useState<SearchResultResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [view, setView] = useState<AppView>('home');
+  const [activeCategoryId, setActiveCategoryId] = useState<string>('all');
+  const [categorySearchQuery, setCategorySearchQuery] = useState<string>('');
+  const [activeProductId, setActiveProductId] = useState<string>(CATALOG_PRODUCTS[0].id);
+
+  // User personalisation preferences (persisted live across all pages)
+  const [prefs, setPrefs] = useState<UserPricePreferences>({
+    pincode: '400001',
+    bankCard: 'HDFC',
+    includeCodFee: false,
+    applyAllCoupons: true,
+    paymentMode: 'FULL',
+  });
+
+  // Saved price alerts
+  const [priceAlerts, setPriceAlerts] = useState<SavedPriceAlert[]>([]);
+
+  // Global overlays
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [diagnostics, setDiagnostics] = useState<ProviderDiagnostic[]>([]);
 
-  // Modals & Drawers
-  const [inspectedOffer, setInspectedOffer] = useState<Offer | null>(null);
-  const [selectedForCompareIds, setSelectedForCompareIds] = useState<string[]>([]);
-  const [isCompareMatrixOpen, setIsCompareMatrixOpen] = useState(false);
-  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
-  const [isJudgePitchOpen, setIsJudgePitchOpen] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-
-  // Filters & Sorting
-  const [sortBy, setSortBy] = useState<SortOption>('TOTAL_COST_ASC');
-  const [freeDeliveryOnly, setFreeDeliveryOnly] = useState(false);
-  const [freeReturnsOnly, setFreeReturnsOnly] = useState(false);
-  const [warrantyGuaranteed, setWarrantyGuaranteed] = useState(false);
-  const [verifiedOnly, setVerifiedOnly] = useState(false);
-
-  // Initial load: Fetch diagnostics and perform first demonstration search
   useEffect(() => {
-    fetchDiagnostics();
-    handleSearch('wireless headphones');
+    fetch('/api/providers')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.providers) setDiagnostics(data.providers);
+      })
+      .catch(() => {
+        // Silently ignore if diagnostics endpoint is unavailable
+      });
   }, []);
 
-  const fetchDiagnostics = async () => {
-    try {
-      const res = await fetch('/api/providers');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.providers) {
-          setDiagnostics(data.providers);
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to fetch provider diagnostics:', err);
-    }
+  const handleUpdatePrefs = (patch: Partial<UserPricePreferences>) => {
+    setPrefs((prev) => ({ ...prev, ...patch }));
   };
 
-  const handleSearch = async (searchTerm: string) => {
-    if (!searchTerm.trim()) return;
-    setIsLoading(true);
-    setErrorMessage(null);
-    setQuery(searchTerm);
-
-    try {
-      const providersQuery = selectedProviders.join(',');
-      const res = await fetch(
-        `/api/search?q=${encodeURIComponent(searchTerm)}&providers=${providersQuery}&includeDemo=true`
-      );
-
-      if (!res.ok) {
-        throw new Error(`Search request failed with status ${res.status}`);
-      }
-
-      const json = await res.json();
-      if (json.success && json.data) {
-        setSearchResponse(json.data);
-      } else {
-        throw new Error(json.error || 'Failed to retrieve comparison offers.');
-      }
-    } catch (err: any) {
-      console.error('Search error:', err);
-      setErrorMessage(err.message || 'Network error occurred while fetching prices.');
-    } finally {
-      setIsLoading(false);
-    }
+  const navigateHome = () => {
+    setView('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleToggleProvider = (providerId: string) => {
-    setSelectedProviders((prev) =>
-      prev.includes(providerId) ? prev.filter((id) => id !== providerId) : [...prev, providerId]
-    );
+  const navigateCategory = (categoryId: string, searchQuery = '') => {
+    setActiveCategoryId(categoryId);
+    setCategorySearchQuery(searchQuery);
+    setView('category');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleToggleCompare = (offerId: string) => {
-    setSelectedForCompareIds((prev) =>
-      prev.includes(offerId) ? prev.filter((id) => id !== offerId) : [...prev, offerId]
-    );
+  const selectProduct = (productId: string) => {
+    setActiveProductId(productId);
+    setView('product');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Extract all offers from current response
-  const allCurrentOffers = useMemo(() => {
-    if (!searchResponse) return [];
-    return searchResponse.products.flatMap((g) => g.offers);
-  }, [searchResponse]);
+  const handleSetPriceAlert = (productId: string, productName: string, targetPrice: number) => {
+    setPriceAlerts((prev) => {
+      const without = prev.filter((a) => a.productId !== productId);
+      return [...without, { productId, productName, targetPrice }];
+    });
+  };
 
-  // Offers selected for comparison matrix
-  const compareOffers = useMemo(() => {
-    return allCurrentOffers.filter((o) => selectedForCompareIds.includes(o.id));
-  }, [allCurrentOffers, selectedForCompareIds]);
+  const handleRemoveAlert = (productId: string) => {
+    setPriceAlerts((prev) => prev.filter((a) => a.productId !== productId));
+  };
 
-  // Filtered & Sorted Product Groups
-  const processedProductGroups = useMemo(() => {
-    if (!searchResponse || !searchResponse.products) return [];
-
-    return searchResponse.products
-      .map((group) => {
-        // Filter offers within group
-        let filteredOffers = group.offers.filter((offer) => {
-          if (freeDeliveryOnly && !offer.delivery.isFree) return false;
-          if (freeReturnsOnly && !offer.returnPolicy.isFreeReturn) return false;
-          if (warrantyGuaranteed && offer.warranty.durationMonths < 12) return false;
-          if (verifiedOnly && offer.totalCostCalculation.completeness !== 'COMPLETE') return false;
-          return true;
-        });
-
-        // Sort offers
-        filteredOffers = [...filteredOffers].sort((a, b) => {
-          switch (sortBy) {
-            case 'TOTAL_COST_ASC':
-              return a.totalCostCalculation.knownTotal - b.totalCostCalculation.knownTotal;
-            case 'STICKER_PRICE_ASC':
-              return a.basePrice - b.basePrice;
-            case 'TRANSPARENCY_DESC': {
-              const gradeOrder: Record<string, number> = { A: 5, B: 4, C: 3, D: 2, F: 1 };
-              return (
-                (gradeOrder[b.totalCostCalculation.transparencyGrade] || 0) -
-                (gradeOrder[a.totalCostCalculation.transparencyGrade] || 0)
-              );
-            }
-            case 'DELIVERY_FASTEST':
-              return (a.delivery.estimatedDays || 99) - (b.delivery.estimatedDays || 99);
-            case 'WARRANTY_LONGEST':
-              return b.warranty.durationMonths - a.warranty.durationMonths;
-            default:
-              return 0;
-          }
-        });
-
-        return {
-          ...group,
-          offers: filteredOffers,
-        };
-      })
-      .filter((group) => group.offers.length > 0);
-  }, [
-    searchResponse,
-    sortBy,
-    freeDeliveryOnly,
-    freeReturnsOnly,
-    warrantyGuaranteed,
-    verifiedOnly,
-  ]);
+  const activeProduct =
+    CATALOG_PRODUCTS.find((p) => p.id === activeProductId) || CATALOG_PRODUCTS[0];
+  const activeAlert = priceAlerts.find((a) => a.productId === activeProduct.id);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-emerald-500/30 selection:text-emerald-200">
-      {/* Navbar */}
-      <Navbar
+    <div className="min-h-screen bg-[#FFFDF7] text-[#241E14] flex flex-col">
+      {/* Slim Cozy Yellow & White Top Nav */}
+      <GlobalNav
+        currentView={view}
+        onNavigateHome={navigateHome}
+        onNavigateCategory={navigateCategory}
+        onSelectProduct={selectProduct}
+        onOpenAiAssistant={() => setIsChatOpen(true)}
         onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
-        onOpenJudgePitch={() => setIsJudgePitchOpen(true)}
-        onOpenChat={() => setIsChatOpen((prev) => !prev)}
-        diagnostics={diagnostics}
-        totalOffers={searchResponse?.totalOffers || 0}
+        prefs={prefs}
+        priceAlerts={priceAlerts}
+        onRemoveAlert={handleRemoveAlert}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
-        <div className="text-center max-w-3xl mx-auto mb-8">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs text-slate-300 mb-4 shadow-inner">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Anti-Deception E-Commerce Cost Engine</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
-            Reveal the <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400">Real Cost</span> of Online Shopping
-          </h1>
-
-          <p className="mt-3 text-sm sm:text-base text-slate-400 max-w-xl mx-auto leading-relaxed">
-            Sellers hide shipping fees, platform charges, and restocking penalties behind lower sticker prices.
-            PriceProof calculates the actual out-of-pocket total automatically.
-          </p>
-
-          {/* Search Bar Input */}
-          <div className="mt-6">
-            <SearchBar
-              onSearch={handleSearch}
-              isLoading={isLoading}
-              initialQuery={query}
-              selectedProviders={selectedProviders}
-              onToggleProvider={handleToggleProvider}
-            />
-          </div>
-        </div>
-
-        {/* Error Notification */}
-        {errorMessage && (
-          <div className="max-w-4xl mx-auto mb-6 p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-            <button
-              onClick={() => handleSearch(query)}
-              className="text-white underline hover:no-underline font-semibold"
-            >
-              Retry
-            </button>
-          </div>
+      {/* Active Page View */}
+      <main className="flex-1">
+        {view === 'home' && (
+          <HomeView
+            prefs={prefs}
+            onSelectProduct={selectProduct}
+            onSelectCategory={(catId, q) => navigateCategory(catId, q)}
+            onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
+            onOpenAiAssistant={() => setIsChatOpen(true)}
+          />
         )}
 
-        {/* Search Results Summary & Active Filters */}
-        {searchResponse && (
-          <div className="mt-6">
-            {/* Active Data Providers Summary Strip */}
-            <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-900/80 border border-slate-850 text-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-slate-400 font-semibold">Sources Searched:</span>
-                {searchResponse.providersSummary.map((prov) => (
-                  <span
-                    key={prov.id}
-                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] ${
-                      prov.status === 'ACTIVE'
-                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
-                        : prov.status === 'DEMO'
-                        ? 'bg-blue-500/10 border-blue-500/20 text-blue-300'
-                        : 'bg-slate-800 border-slate-700 text-slate-400'
-                    }`}
-                  >
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        prov.status === 'ACTIVE'
-                          ? 'bg-emerald-400 animate-pulse'
-                          : prov.status === 'DEMO'
-                          ? 'bg-blue-400'
-                          : 'bg-slate-500'
-                      }`}
-                    ></span>
-                    <span className="font-medium">{prov.name}</span>
-                    <span className="text-slate-500">({prov.offersCount} offers)</span>
-                    {prov.latencyMs > 0 && (
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        {prov.latencyMs}ms
-                      </span>
-                    )}
-                  </span>
-                ))}
-              </div>
-
-              <div className="flex items-center gap-2 text-slate-400 text-xs">
-                <Clock className="w-3.5 h-3.5" />
-                <span>Audited: {new Date(searchResponse.searchedAt).toLocaleTimeString()}</span>
-              </div>
-            </div>
-
-            {/* Filter and Sort Bar */}
-            <FiltersAndSortBar
-              sortBy={sortBy}
-              onSortChange={setSortBy}
-              freeDeliveryOnly={freeDeliveryOnly}
-              onToggleFreeDelivery={() => setFreeDeliveryOnly(!freeDeliveryOnly)}
-              freeReturnsOnly={freeReturnsOnly}
-              onToggleFreeReturns={() => setFreeReturnsOnly(!freeReturnsOnly)}
-              warrantyGuaranteed={warrantyGuaranteed}
-              onToggleWarrantyGuaranteed={() => setWarrantyGuaranteed(!warrantyGuaranteed)}
-              verifiedOnly={verifiedOnly}
-              onToggleVerifiedOnly={() => setVerifiedOnly(!verifiedOnly)}
-              totalOffers={searchResponse.totalOffers}
-              selectedForCompareCount={selectedForCompareIds.length}
-              onOpenCompare={() => setIsCompareMatrixOpen(true)}
-              onClearCompare={() => setSelectedForCompareIds([])}
-            />
-
-            {/* Product Groups & Offers */}
-            {processedProductGroups.length > 0 ? (
-              <div className="space-y-10">
-                {processedProductGroups.map((group) => {
-                  const cheapestOffer = group.offers.find((o) => o.id === group.cheapestOfferId) || group.offers[0];
-
-                  return (
-                    <div
-                      key={group.id}
-                      className="p-5 sm:p-6 rounded-3xl bg-slate-900/40 border border-slate-800/80 shadow-xl"
-                    >
-                      {/* Group Header */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-5 border-b border-slate-800/80 mb-5">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-300">
-                              {group.category}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              {group.offers.length} sellers compared
-                            </span>
-                          </div>
-                          <h2 className="text-xl sm:text-2xl font-extrabold text-white mt-1">
-                            {group.canonicalTitle}
-                          </h2>
-                        </div>
-
-                        {/* Lowest known total cost callout for this group */}
-                        <div className="sm:text-right shrink-0">
-                          <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                            Lowest Real Cost Found
-                          </div>
-                          <div className="text-2xl sm:text-3xl font-extrabold text-emerald-400 font-mono">
-                            {formatINR(cheapestOffer.totalCostCalculation.knownTotal)}
-                          </div>
-                          <div className="text-xs text-slate-400">
-                            Sold by {cheapestOffer.seller.name}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Warning if group has incomplete delivery charges */}
-                      {group.warnings.length > 0 && (
-                        <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
-                          <Info className="w-4 h-4 text-amber-400 shrink-0" />
-                          <span>{group.warnings.join(' ')}</span>
-                        </div>
-                      )}
-
-                      {/* Offers List */}
-                      <div className="space-y-4">
-                        {group.offers.map((offer) => (
-                          <OfferCard
-                            key={offer.id}
-                            offer={offer}
-                            onInspect={(o) => setInspectedOffer(o)}
-                            isSelectedForCompare={selectedForCompareIds.includes(offer.id)}
-                            onToggleCompare={handleToggleCompare}
-                            isLowestTotalInGroup={offer.id === group.cheapestOfferId}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState
-                query={query}
-                onSuggestionClick={(term) => handleSearch(term)}
-              />
-            )}
-          </div>
+        {view === 'category' && (
+          <CategoryListingView
+            initialCategoryId={activeCategoryId}
+            initialSearchQuery={categorySearchQuery}
+            prefs={prefs}
+            onSelectProduct={selectProduct}
+            onNavigateHome={navigateHome}
+          />
         )}
 
-        {/* Educational Section: The 4 Hidden Fee Traps */}
-        <EducationalSection />
+        {view === 'product' && (
+          <ProductComparisonView
+            key={activeProduct.id}
+            product={activeProduct}
+            prefs={prefs}
+            onUpdatePrefs={handleUpdatePrefs}
+            onNavigateHome={navigateHome}
+            onNavigateCategory={(catId) => navigateCategory(catId)}
+            existingAlertPrice={activeAlert?.targetPrice}
+            onSetPriceAlert={handleSetPriceAlert}
+          />
+        )}
       </main>
 
-      {/* Floating Bottom Comparison Drawer Indicator if items selected */}
-      {selectedForCompareIds.length > 0 && (
-        <div className="fixed bottom-5 right-5 z-40 animate-in slide-in-from-bottom-5">
-          <button
-            onClick={() => setIsCompareMatrixOpen(true)}
-            className="flex items-center gap-2.5 px-5 py-3 rounded-2xl bg-emerald-500 text-slate-950 font-bold text-sm shadow-xl shadow-emerald-500/30 hover:bg-emerald-400 transition-all cursor-pointer"
-          >
-            <Layers className="w-4 h-4" />
-            <span>Open Side-by-Side Comparison ({selectedForCompareIds.length})</span>
-          </button>
+      {/* Cozy Butter-Yellow & White Footer */}
+      <footer
+        className={`bg-[#FFF8DF] text-[#241E14] border-t border-[#E6D496] ${
+          view === 'product' ? 'pb-20' : ''
+        }`}
+      >
+        <div className="max-w-[1380px] mx-auto px-4 sm:px-6 lg:px-8 py-11">
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-9 border-b border-[#EFE3B8]">
+            <div className="md:col-span-5">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="w-2.5 h-2.5 rounded-[2px] bg-[#F5B800]" aria-hidden="true" />
+                <span className="text-base font-bold tracking-[-0.03em] text-[#241E14]">
+                  PRICEPROOF
+                </span>
+              </div>
+              <p className="text-sm text-[#5C5240] max-w-sm leading-relaxed">
+                Independent true-price and return-policy audits across Indian online stores. We
+                never take sponsored placements or hide checkout surcharges.
+              </p>
+            </div>
+
+            <div className="md:col-span-3 space-y-2.5">
+              <div className="mono-eyebrow text-[#855400]">EXPLORE</div>
+              <ul className="space-y-2 text-sm text-[#5C5240]">
+                <li>
+                  <button
+                    type="button"
+                    onClick={navigateHome}
+                    className="hover:text-[#9A6700] transition-colors cursor-pointer"
+                  >
+                    Home &amp; Biggest Gaps
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => navigateCategory('all')}
+                    className="hover:text-[#9A6700] transition-colors cursor-pointer"
+                  >
+                    All Audited Categories
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => navigateCategory('stores')}
+                    className="hover:text-[#9A6700] transition-colors cursor-pointer"
+                  >
+                    Indian Store Audits
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => selectProduct('macbook-pro-16-m4')}
+                    className="hover:text-[#9A6700] transition-colors cursor-pointer"
+                  >
+                    Featured Comparison (MacBook Pro)
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            <div className="md:col-span-4 space-y-2.5">
+              <div className="mono-eyebrow text-[#855400]">TRANSPARENCY &amp; TOOLS</div>
+              <ul className="space-y-2 text-sm text-[#5C5240]">
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setIsDiagnosticsOpen(true)}
+                    className="hover:text-[#9A6700] transition-colors cursor-pointer"
+                  >
+                    Data Sources &amp; Provider Diagnostics
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setIsChatOpen(true)}
+                    className="hover:text-[#9A6700] transition-colors cursor-pointer"
+                  >
+                    ✦ Ask PriceProof AI Advisor
+                  </button>
+                </li>
+                <li className="text-xs text-[#857861] pt-1">
+                  Currency: INR (₹) · Press{' '}
+                  <kbd className="px-1.5 py-0.5 rounded bg-[#FEF0B8] border border-[#E6D496] text-[#241E14] font-mono text-[10px]">
+                    /
+                  </kbd>{' '}
+                  anywhere to search.
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="pt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.09em] text-[#857861]">
+            <span>© {new Date().getFullYear()} PRICEPROOF INDIA · PRICE-TRUTH &amp; POLICY COMPARISON</span>
+            <span className="text-[#855400] font-semibold">
+              ■ ZERO SPONSORED RANKINGS · INR AUDITED
+            </span>
+          </div>
         </div>
-      )}
+      </footer>
 
-      {/* Modals */}
-      <FeeBreakdownModal
-        offer={inspectedOffer}
-        onClose={() => setInspectedOffer(null)}
-      />
-
-      <ComparisonMatrix
-        selectedOffers={compareOffers}
-        onClose={() => setIsCompareMatrixOpen(false)}
-        onRemoveOffer={(id) => handleToggleCompare(id)}
-      />
-
+      {/* Provider Diagnostics Modal */}
       {isDiagnosticsOpen && (
         <ProviderDiagnosticsModal
           diagnostics={diagnostics}
@@ -418,49 +256,14 @@ export default function App() {
         />
       )}
 
-      {isJudgePitchOpen && (
-        <JudgePitchModal
-          onClose={() => setIsJudgePitchOpen(false)}
-          onSelectDemoSearch={(term) => handleSearch(term)}
-        />
-      )}
-
-      {/* Context-Aware Shopping Assistant Chatbot */}
+      {/* Editorial AI Shopping Assistant Drawer */}
       <PriceProofChatbot
         isOpen={isChatOpen}
-        onToggleOpen={() => setIsChatOpen((prev) => !prev)}
-        currentQuery={query}
-        searchResponse={searchResponse}
-        visibleOffers={processedProductGroups.flatMap((g) => g.offers)}
-        hasFloatingCompareButton={selectedForCompareIds.length > 0}
+        onToggleOpen={() => setIsChatOpen((o) => !o)}
+        activeProduct={view === 'product' ? activeProduct : null}
+        prefs={prefs}
+        hasBottomActionBar={view === 'product'}
       />
-
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-8 mt-16 text-center text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-slate-300">PriceProof</span>
-            <span>—</span>
-            <span>24-Hour Hackathon Project: Real Cost E-Commerce Engine</span>
-          </div>
-          <div className="flex items-center gap-4 text-slate-400">
-            <button
-              onClick={() => setIsDiagnosticsOpen(true)}
-              className="hover:text-emerald-400 transition-colors cursor-pointer"
-            >
-              API Diagnostics
-            </button>
-            <a
-              href="https://github.com/priceproof/docs"
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-emerald-400 transition-colors"
-            >
-              Documentation & Providers
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

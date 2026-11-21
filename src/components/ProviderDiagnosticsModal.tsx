@@ -1,16 +1,7 @@
 import React from 'react';
-import {
-  X,
-  Database,
-  CheckCircle2,
-  AlertCircle,
-  Key,
-  ExternalLink,
-  ShieldCheck,
-  Zap,
-  Info,
-} from 'lucide-react';
+import { X, Key, ExternalLink, ShieldCheck } from 'lucide-react';
 import { ProviderDiagnostic } from '../types/product.ts';
+import { EditorialBadge } from './editorial/Primitives.tsx';
 
 interface ProviderDiagnosticsModalProps {
   diagnostics: ProviderDiagnostic[];
@@ -22,41 +13,46 @@ export const ProviderDiagnosticsModal: React.FC<ProviderDiagnosticsModalProps> =
   onClose,
 }) => {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-      <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="p-5 border-b border-slate-800 flex items-start justify-between bg-slate-950/70">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-              <Database className="w-5 h-5" />
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#241E14]/55 backdrop-blur-[2px]"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Data sources and provider diagnostics"
+    >
+      <div className="relative w-full max-w-3xl bg-white border border-[#E6D496] rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Cozy Sunbeam Header */}
+        <div className="px-5 py-4 bg-[#FEF0B8] text-[#241E14] border-b border-[#E6D496] flex items-start justify-between gap-4">
+          <div>
+            <div className="mono-eyebrow text-[#855400]">
+              ■ VERIFICATION &amp; DATA ATTRIBUTION
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">
-                Data Providers & API Architecture
-              </h2>
-              <p className="text-xs text-slate-400">
-                Authorized provider integrations, authentication methods, and configuration status
-              </p>
-            </div>
+            <h2 className="text-lg font-bold text-[#241E14] mt-0.5">
+              Data Providers &amp; Authorized Feeds
+            </h2>
+            <p className="text-xs text-[#5C5240] mt-0.5">
+              Transparent disclosure of live APIs, audited reference catalogs, and partner credentials
+            </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors cursor-pointer"
+            aria-label="Close diagnostics"
+            className="w-8 h-8 rounded-lg bg-white border border-[#E6D496] text-[#241E14] flex items-center justify-center hover:bg-[#F5B800] hover:border-[#F5B800] transition-colors cursor-pointer shrink-0"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-5 overflow-y-auto space-y-4">
-          <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800/80 text-xs text-slate-300">
-            <div className="font-semibold text-white mb-1 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>Compliance & Anti-Scraping Guarantee</span>
+        <div className="p-5 overflow-y-auto space-y-4 bg-[#FFFDF7]">
+          <div className="p-4 bg-[#FFF8DF] border border-[#EFE3B8] rounded-xl text-xs text-[#5C5240]">
+            <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#241E14] mb-1 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#9A6700]" />
+              <span>COMPLIANCE &amp; ZERO-SCRAPING GUARANTEE</span>
             </div>
-            PriceProof respects platforms' terms of service. We do not use unauthorized screen scraping,
-            fabricated live results, or spoofed bot headers. All live data is fetched through authorized REST APIs
-            or verified publisher feeds.
+            PriceProof respects platform terms of service. Live store feeds require authorised
+            affiliate or partner API credentials configured on the server; curated Indian store fee
+            &amp; return audits are clearly separated and timestamped.
           </div>
 
           <div className="space-y-3">
@@ -68,60 +64,55 @@ export const ProviderDiagnosticsModal: React.FC<ProviderDiagnosticsModalProps> =
               return (
                 <div
                   key={provider.id}
-                  className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-3"
+                  className="p-4 bg-white border border-[#EFE3B8] rounded-xl space-y-3"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-white text-sm">{provider.name}</h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-[#241E14] text-sm">{provider.name}</h3>
                         {isActive && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                          <EditorialBadge variant="green-outline" withGreenSquare>
                             ACTIVE LIVE
-                          </span>
+                          </EditorialBadge>
                         )}
-                        {isDemo && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
-                            DEMO SIMULATION
-                          </span>
-                        )}
+                        {isDemo && <EditorialBadge variant="light">AUDITED DEMO</EditorialBadge>}
                         {requiresAuth && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            REQUIRES CREDENTIALS
-                          </span>
+                          <EditorialBadge variant="amber">REQUIRES CREDENTIALS</EditorialBadge>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">{provider.description}</p>
+                      <p className="text-xs text-[#5C5240] mt-1">{provider.description}</p>
                     </div>
 
                     <a
                       href={provider.docsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 shrink-0 cursor-pointer"
+                      className="font-mono text-[10px] font-semibold uppercase tracking-wider text-[#9A6700] hover:text-[#241E14] hover:underline inline-flex items-center gap-1 shrink-0"
                     >
-                      <span>API Docs</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>API DOCS</span>
+                      <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
 
-                  {/* Authentication & Env Vars */}
-                  <div className="text-xs space-y-1.5 pt-2 border-t border-slate-800/80">
-                    <div className="flex items-start gap-2 text-slate-400">
-                      <Key className="w-3.5 h-3.5 mt-0.5 text-slate-500 shrink-0" />
+                  <div className="text-xs space-y-1.5 pt-2.5 border-t border-[#EFE3B8]">
+                    <div className="flex items-start gap-2 text-[#5C5240]">
+                      <Key className="w-3.5 h-3.5 mt-0.5 text-[#857861] shrink-0" />
                       <span>
-                        <strong className="text-slate-300">Auth Method:</strong> {provider.authMethod}
+                        <strong className="text-[#241E14]">Auth Method:</strong>{' '}
+                        {provider.authMethod}
                       </span>
                     </div>
 
                     {provider.requiredEnvVars.length > 0 && (
                       <div className="pl-5">
-                        <div className="text-slate-400 font-semibold mb-1">Required Environment Variables:</div>
+                        <div className="text-[#5C5240] font-semibold mb-1">
+                          Required Server Environment Variables:
+                        </div>
                         <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
                           {provider.requiredEnvVars.map((v, i) => (
                             <span
                               key={i}
-                              className="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-amber-300"
+                              className="px-2 py-0.5 rounded-md bg-[#FFF8DF] border border-[#EFE3B8] text-[#92400E]"
                             >
                               {v}
                             </span>
@@ -130,8 +121,9 @@ export const ProviderDiagnosticsModal: React.FC<ProviderDiagnosticsModalProps> =
                       </div>
                     )}
 
-                    <div className="pl-5 text-[11px] text-slate-400">
-                      <strong>Supported Regions:</strong> {provider.supportedRegions.join(', ')}
+                    <div className="pl-5 text-[11px] text-[#857861]">
+                      <strong className="text-[#241E14]">Supported Regions:</strong>{' '}
+                      {provider.supportedRegions.join(', ')}
                     </div>
                   </div>
                 </div>
@@ -141,12 +133,13 @@ export const ProviderDiagnosticsModal: React.FC<ProviderDiagnosticsModalProps> =
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950 flex justify-end">
+        <div className="px-5 py-3.5 border-t border-[#EFE3B8] bg-white flex justify-end">
           <button
+            type="button"
             onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs cursor-pointer"
+            className="px-5 py-2 rounded-lg bg-[#F5B800] hover:bg-[#EAB308] text-[#241E14] font-mono text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
           >
-            Close Diagnostics
+            CLOSE
           </button>
         </div>
       </div>

@@ -1,1 +1,81 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-serif-accent: "Playfair Display", Georgia, serif;
+
+  /* Cozy Yellow & White Palette */
+  --color-ink: #241E14;
+  --color-ink-muted: #5C5240;
+  --color-ink-subtle: #857861;
+  --color-canvas: #FFFFFF;
+  --color-cream: #FFFDF7;
+  --color-butter: #FFF8DF;
+  --color-sunbeam: #FEF0B8;
+  --color-honey: #F5B800;
+  --color-honey-hover: #DDA300;
+  --color-amber-text: #9A6700;
+  --color-hairline: #EFE3B8;
+  --color-hairline-strong: #D9C37B;
+
+  --color-good: #15803D;
+  --color-good-soft: #ECFDF3;
+  --color-warn: #B45309;
+  --color-warn-soft: #FEF3C7;
+  --color-danger: #B91C1C;
+  --color-danger-soft: #FEE2E2;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+    background-color: #fffdf7;
+    color: #241e14;
+  }
+
+  button,
+  a,
+  input,
+  select {
+    outline-color: #d99b00;
+  }
+}
+
+.font-serif-italic {
+  font-family: var(--font-serif-accent);
+  font-style: italic;
+}
+
+.mono-eyebrow {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.tabular-price {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

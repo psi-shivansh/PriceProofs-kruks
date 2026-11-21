@@ -1,17 +1,19 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
-  MessageSquare,
   X,
   Send,
   RotateCcw,
-  ShieldCheck,
   AlertCircle,
   Loader2,
   Square,
   ChevronDown,
-  Sparkles,
+  MessageSquare,
 } from 'lucide-react';
-import { Offer, SearchResultResponse } from '../types/product.ts';
+import {
+  CatalogProduct,
+  UserPricePreferences,
+  computeProductOffers,
+} from '../data/indianCatalog.ts';
 import { formatINR } from '../core/formatters.ts';
 
 interface ChatMessage {
@@ -25,28 +27,24 @@ interface ChatMessage {
 interface PriceProofChatbotProps {
   isOpen: boolean;
   onToggleOpen: () => void;
-  currentQuery: string;
-  searchResponse: SearchResultResponse | null;
-  visibleOffers: Offer[];
-  hasFloatingCompareButton: boolean;
+  activeProduct: CatalogProduct | null;
+  prefs: UserPricePreferences;
+  hasBottomActionBar: boolean;
 }
 
-/**
- * Safe inline markdown renderer (**bold**, *italic*, `code`) without raw HTML injection.
- */
 function renderInlineFormatting(line: string): React.ReactNode[] {
   const parts = line.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`)/g);
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
-        <strong key={idx} className="font-semibold text-white">
+        <strong key={idx} className="font-bold text-[#241E14]">
           {part.slice(2, -2)}
         </strong>
       );
     }
     if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
       return (
-        <em key={idx} className="italic text-slate-300">
+        <em key={idx} className="italic text-[#5C5240]">
           {part.slice(1, -1)}
         </em>
       );
@@ -55,7 +53,7 @@ function renderInlineFormatting(line: string): React.ReactNode[] {
       return (
         <code
           key={idx}
-          className="px-1 py-0.5 rounded bg-slate-800 text-emerald-300 font-mono text-[11px]"
+          className="px-1.5 py-0.5 rounded bg-[#FFF8DF] border border-[#EFE3B8] text-[#241E14] font-mono text-[11px]"
         >
           {part.slice(1, -1)}
         </code>
@@ -112,7 +110,10 @@ function FormattedMessage({ text }: { text: string }) {
       flushOrdered(index);
       const headingText = trimmed.replace(/^#{1,4}\s+/, '').replace(/^\*\*|\*\*$/g, '');
       blocks.push(
-        <h4 key={`h-${index}`} className="font-bold text-emerald-300 text-xs pt-1.5">
+        <h4
+          key={`h-${index}`}
+          className="font-mono text-[11px] font-bold uppercase tracking-wider text-[#855400] pt-1.5"
+        >
           {renderInlineFormatting(headingText)}
         </h4>
       );
@@ -139,10 +140,9 @@ function FormattedMessage({ text }: { text: string }) {
 export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
   isOpen,
   onToggleOpen,
-  currentQuery,
-  searchResponse,
-  visibleOffers,
-  hasFloatingCompareButton,
+  activeProduct,
+  prefs,
+  hasBottomActionBar,
 }) => {
   const [input, setInput] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -154,20 +154,15 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const quickPrompts = useMemo(() => {
-    if (visibleOffers.length > 0) {
-      return [
-        'Which offer is actually cheapest overall?',
-        'Are there any sticker traps or hidden fees here?',
-        'Compare return policies and warranties',
-        'Which seller gives the safest overall value?',
-      ];
+    if (activeProduct) {
+      return activeProduct.askQuestions.slice(0, 3);
     }
     return [
-      'How does PriceProof calculate real total cost?',
-      'What is a deceptive sticker price trap?',
-      'What should I check before buying electronics online?',
+      'Hidden charges on Flipkart vs Amazon in India?',
+      'Which Indian store has the best return policy for laptops?',
+      'Is No-Cost EMI actually free after bank processing GST?',
     ];
-  }, [visibleOffers.length]);
+  }, [activeProduct]);
 
   useEffect(() => {
     if (isOpen) {
@@ -189,46 +184,42 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
   }, []);
 
   const buildOfferContext = () => {
-    const offers = visibleOffers.slice(0, 12).map((o) => {
-      const mandatoryFeesTotal = o.mandatoryFees.reduce(
-        (sum, f) => sum + (f.isUnknown ? 0 : f.amount),
-        0
-      );
-      const deliveryLabel = o.delivery.isUnknown
-        ? 'Undisclosed until pincode/checkout'
-        : o.delivery.isFree
-        ? 'Free (₹0)'
-        : formatINR(o.delivery.fee);
-
-      return {
-        title: o.title,
-        sellerName: o.seller.name,
-        basePrice: o.basePrice,
-        knownTotal: o.totalCostCalculation.knownTotal,
-        stickerDelta: o.totalCostCalculation.stickerDelta,
-        deliveryLabel,
-        mandatoryFeesTotal,
-        mandatoryFeeNames: o.mandatoryFees.map((f) => f.name),
-        returnWindowDays: o.returnPolicy.windowDays,
-        isFreeReturn: o.returnPolicy.isFreeReturn,
-        returnShippingCharge: o.returnPolicy.shippingCharge,
-        restockingFeePercentage: o.returnPolicy.restockingFeePercentage,
-        warrantyMonths: o.warranty.durationMonths,
-        warrantyCoverage: o.warranty.coverage,
-        transparencyGrade: o.totalCostCalculation.transparencyGrade,
-        completeness: o.totalCostCalculation.completeness,
-        isCheapestComparable: o.totalCostCalculation.isCheapestComparable,
-        isDeceptiveSticker: o.totalCostCalculation.isDeceptiveSticker,
-        isLive: o.dataSource.isLive,
-        providerName: o.dataSource.providerName,
-        warnings: o.totalCostCalculation.warnings,
-      };
-    });
-
+    if (!activeProduct) return undefined;
+    const computed = computeProductOffers(activeProduct, prefs, 'FINAL_PRICE');
     return {
-      query: searchResponse?.query || currentQuery,
-      totalOffers: searchResponse?.totalOffers || visibleOffers.length,
-      offers,
+      query: `${activeProduct.name} (Pincode ${prefs.pincode}, Card: ${prefs.bankCard}, COD: ${
+        prefs.includeCodFee ? 'ON' : 'OFF'
+      }, Mode: ${prefs.paymentMode})`,
+      totalOffers: computed.length,
+      offers: computed.map((o) => ({
+        title: activeProduct.name,
+        sellerName: o.listing.storeName,
+        basePrice: o.listedPrice,
+        knownTotal: o.finalPayablePrice,
+        stickerDelta: o.deltaVsListed,
+        deliveryLabel: o.deliveryFee === 0 ? 'Free (₹0)' : formatINR(o.deliveryFee),
+        mandatoryFeesTotal: o.totalFees,
+        mandatoryFeeNames: o.activeFeeLines.map((f) => f.label),
+        returnWindowDays: o.listing.returnPolicy.windowDays,
+        isFreeReturn: o.listing.returnPolicy.returnShippingSignal === 'good',
+        returnShippingCharge: o.listing.returnPolicy.returnShippingSignal === 'good' ? 0 : 249,
+        restockingFeePercentage: o.listing.returnPolicy.restockingFeePercent,
+        warrantyMonths: 12,
+        warrantyCoverage: activeProduct.warrantyNote,
+        transparencyGrade:
+          o.listing.trustScore >= 85 ? 'A' : o.listing.trustScore >= 75 ? 'B' : 'C',
+        completeness: o.listing.returnPolicy.policyFound ? 'COMPLETE' : 'PARTIAL_ESTIMATE',
+        isCheapestComparable: o.isBestPrice,
+        isDeceptiveSticker: o.hiddenFeesCount > 0 && !o.isBestPrice,
+        isLive: false,
+        providerName: 'PriceProof Audited Indian Store Catalog',
+        warnings: [
+          o.listing.returnPolicy.plainEnglishSummary,
+          ...(o.hiddenFeesCount > 0
+            ? [`${o.hiddenFeesCount} hidden fees (+${formatINR(o.hiddenFeesTotal)})`]
+            : []),
+        ],
+      })),
     };
   };
 
@@ -259,7 +250,6 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
     setLastFailedPrompt(null);
     setInput('');
 
-    // Build clean history only from completed user/model pairs (never include errored/orphan turns)
     const baseMessages = isRetry
       ? messages.slice(0, Math.max(0, messages.length - 2))
       : messages;
@@ -320,9 +310,7 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
 
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === assistantMsgId
-            ? { ...m, text: payload!.reply!, isLoading: false }
-            : m
+          m.id === assistantMsgId ? { ...m, text: payload!.reply!, isLoading: false } : m
         )
       );
     } catch (err: unknown) {
@@ -337,9 +325,7 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
       setLastFailedPrompt(trimmed);
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === assistantMsgId
-            ? { ...m, isLoading: false, error: errorMessage }
-            : m
+          m.id === assistantMsgId ? { ...m, isLoading: false, error: errorMessage } : m
         )
       );
     } finally {
@@ -348,45 +334,32 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    sendMessage(input);
-  };
-
   return (
     <div
-      className={`fixed right-5 z-50 flex flex-col items-end ${
-        hasFloatingCompareButton ? 'bottom-20' : 'bottom-5'
+      className={`fixed right-4 sm:right-6 z-50 flex flex-col items-end ${
+        hasBottomActionBar ? 'bottom-20' : 'bottom-5'
       }`}
     >
-      {/* Expanded Chat Panel */}
       {isOpen && (
         <div
           role="dialog"
-          aria-label="PriceProof Shopping Assistant"
-          className="mb-3 w-[calc(100vw-2.5rem)] sm:w-[400px] h-[540px] max-h-[78vh] rounded-3xl bg-slate-900 border border-slate-700/80 shadow-2xl shadow-black/70 flex flex-col overflow-hidden"
+          aria-label="PriceProof AI Price & Policy Assistant"
+          className="mb-3 w-[calc(100vw-2rem)] sm:w-[410px] h-[520px] max-h-[75vh] bg-white border border-[#E6D496] rounded-2xl shadow-[0_18px_46px_-12px_rgba(154,103,0,0.28)] flex flex-col overflow-hidden"
         >
-          {/* Header */}
-          <div className="px-4 py-3.5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 p-0.5 shrink-0">
-                <div className="w-full h-full rounded-[10px] bg-slate-950 flex items-center justify-center">
-                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                </div>
+          {/* Cozy Sunbeam Header */}
+          <div className="px-4 py-3.5 bg-[#FEF0B8] text-[#241E14] border-b border-[#E6D496] flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-[2px] bg-[#F5B800] shrink-0" />
+                <h3 className="font-mono text-xs font-bold uppercase tracking-[0.1em] truncate">
+                  PRICEPROOF AI ADVISOR
+                </h3>
               </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <h3 className="text-sm font-bold text-white truncate">
-                    PriceProof Assistant
-                  </h3>
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                </div>
-                <p className="text-[11px] text-slate-400 truncate">
-                  {visibleOffers.length > 0
-                    ? `Context: "${searchResponse?.query || currentQuery}" (${visibleOffers.length} offers)`
-                    : 'Ask about fees, returns & true totals'}
-                </p>
-              </div>
+              <p className="text-[11px] text-[#5C5240] truncate mt-0.5">
+                {activeProduct
+                  ? `Auditing: ${activeProduct.shortName} · PIN ${prefs.pincode}`
+                  : 'Ask about hidden fees, bank offers & return policies'}
+              </p>
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
@@ -395,9 +368,9 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
                   type="button"
                   onClick={handleResetChat}
                   title="Clear chat history"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-[#5C5240] hover:text-[#241E14] hover:bg-[#F5B800]/30 transition-colors cursor-pointer"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw className="w-3.5 h-3.5" />
                 </button>
               )}
               <button
@@ -405,7 +378,7 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
                 onClick={onToggleOpen}
                 title="Minimize assistant"
                 aria-label="Minimize assistant"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg text-[#5C5240] hover:text-[#241E14] hover:bg-[#F5B800]/30 transition-colors cursor-pointer"
               >
                 <ChevronDown className="w-4 h-4" />
               </button>
@@ -413,86 +386,75 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
           </div>
 
           {/* Messages Feed */}
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 bg-slate-950/40">
-            {/* Initial Greeting */}
-            <div className="flex items-start gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 bg-[#FFFDF7]">
+            {/* Greeting */}
+            <div className="p-3.5 bg-white border border-[#EFE3B8] rounded-xl text-xs text-[#241E14] space-y-1.5">
+              <div className="font-mono text-[10px] font-bold uppercase tracking-wider text-[#855400]">
+                ■ READY TO AUDIT
               </div>
-              <div className="rounded-2xl rounded-tl-sm bg-slate-900 border border-slate-800 px-3.5 py-2.5 text-xs text-slate-200 max-w-[85%] space-y-2">
-                <p className="leading-relaxed">
-                  Hi! I can help you compare the{' '}
-                  <strong className="text-white">real out-of-pocket cost</strong> of the offers
-                  on screen, flag hidden delivery or restocking fees, and weigh warranty terms.
-                </p>
-                {visibleOffers.length > 0 && (
-                  <p className="text-[11px] text-emerald-300/90">
-                    I can see {visibleOffers.length} compared offers for{' '}
-                    <span className="font-semibold">"{searchResponse?.query || currentQuery}"</span>.
-                  </p>
-                )}
-              </div>
+              <p className="leading-relaxed text-[#5C5240]">
+                Ask me what you&rsquo;ll <strong className="text-[#241E14]">actually pay</strong>{' '}
+                after hidden fees, which card saves the most, or what happens if you return a
+                defective item.
+              </p>
             </div>
 
-            {/* Starter Prompts when conversation is fresh */}
             {messages.length === 0 && (
-              <div className="pl-9 flex flex-wrap gap-1.5">
-                {quickPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => sendMessage(prompt)}
-                    disabled={isSending}
-                    className="text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-slate-300 hover:text-emerald-300 transition-all cursor-pointer"
-                  >
-                    {prompt}
-                  </button>
-                ))}
+              <div className="space-y-1.5">
+                <div className="font-mono text-[10px] uppercase tracking-wider text-[#857861]">
+                  QUICK QUESTIONS
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  {quickPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => sendMessage(prompt)}
+                      disabled={isSending}
+                      className="text-left text-xs px-3 py-2 rounded-xl bg-white border border-[#EFE3B8] text-[#241E14] hover:bg-[#FEF0B8] hover:border-[#F5B800] transition-colors cursor-pointer"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 
-            {/* Chat History */}
             {messages.map((msg, idx) => {
               const isUser = msg.role === 'user';
-              const isLatestMessage = idx === messages.length - 1;
+              const isLatest = idx === messages.length - 1;
               return (
                 <div
                   key={msg.id}
-                  className={`flex ${isUser ? 'justify-end' : 'justify-start items-start gap-2.5'}`}
+                  className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
                 >
-                  {!isUser && (
-                    <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0 mt-0.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    </div>
-                  )}
-
                   <div
-                    className={`rounded-2xl px-3.5 py-2.5 text-xs max-w-[85%] ${
+                    className={`px-3.5 py-2.5 text-xs max-w-[88%] rounded-xl ${
                       isUser
-                        ? 'rounded-tr-sm bg-emerald-500 text-slate-950 font-medium'
-                        : 'rounded-tl-sm bg-slate-900 border border-slate-800 text-slate-200'
+                        ? 'bg-[#F5B800] text-[#241E14] font-medium border border-[#DDA300]'
+                        : 'bg-white border border-[#EFE3B8] text-[#241E14]'
                     }`}
                   >
                     {msg.error ? (
-                      <div className="space-y-2 text-rose-300">
+                      <div className="space-y-2 text-[#991B1B]">
                         <div className="flex items-start gap-1.5">
-                          <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                           <span>{msg.error}</span>
                         </div>
-                        {isLatestMessage && lastFailedPrompt && (
+                        {isLatest && lastFailedPrompt && (
                           <button
                             type="button"
                             onClick={() => sendMessage(lastFailedPrompt, true)}
-                            className="text-[11px] font-semibold text-white underline hover:no-underline cursor-pointer"
+                            className="font-mono text-[10px] font-bold uppercase text-[#855400] hover:text-[#241E14] underline cursor-pointer"
                           >
-                            Try again
+                            TRY AGAIN →
                           </button>
                         )}
                       </div>
                     ) : msg.isLoading ? (
-                      <div className="flex items-center gap-2 text-slate-400 py-0.5">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
-                        <span>Analyzing offers & fees...</span>
+                      <div className="flex items-center gap-2 text-[#5C5240] font-mono text-[11px] py-0.5">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-[#9A6700]" />
+                        <span>Checking fees &amp; return rules...</span>
                       </div>
                     ) : isUser ? (
                       <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
@@ -508,26 +470,28 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
 
           {/* Input Footer */}
           <form
-            onSubmit={handleSubmit}
-            className="p-3 bg-slate-950 border-t border-slate-800 flex items-center gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              sendMessage(input);
+            }}
+            className="p-3 bg-white border-t border-[#EFE3B8] flex items-center gap-2"
           >
             <input
               ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about fees, returns, or best value..."
+              placeholder="Ask about fees, COD, or return policies..."
               disabled={isSending}
               aria-label="Message PriceProof Assistant"
-              className="flex-1 h-10 px-3.5 rounded-xl bg-slate-900 border border-slate-800 focus:border-emerald-500 text-xs text-white placeholder-slate-400 outline-none transition-colors"
+              className="flex-1 h-10 px-3 rounded-xl bg-[#FFFDF7] border border-[#E6D496] hover:border-[#F5B800] focus:bg-white focus:border-[#F5B800] focus:ring-2 focus:ring-[#F5B800]/30 text-xs text-[#241E14] placeholder-[#857861] outline-none transition-all"
             />
             {isSending ? (
               <button
                 type="button"
                 onClick={handleStopRequest}
-                title="Cancel request"
                 aria-label="Cancel request"
-                className="h-10 w-10 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                className="h-10 w-10 rounded-xl bg-[#FEE2E2] border border-[#B91C1C]/40 text-[#991B1B] flex items-center justify-center shrink-0 cursor-pointer"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
               </button>
@@ -535,9 +499,8 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
               <button
                 type="submit"
                 disabled={!input.trim()}
-                title="Send message"
                 aria-label="Send message"
-                className="h-10 w-10 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 flex items-center justify-center shrink-0 transition-all cursor-pointer"
+                className="h-10 w-10 rounded-xl bg-[#F5B800] hover:bg-[#EAB308] disabled:opacity-40 text-[#241E14] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -546,27 +509,27 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
         </div>
       )}
 
-      {/* Floating Launcher Button */}
+      {/* Cozy Honey-Gold Launcher Button */}
       <button
         type="button"
         onClick={onToggleOpen}
         aria-expanded={isOpen}
         aria-label={isOpen ? 'Close PriceProof Assistant' : 'Open PriceProof Assistant'}
-        className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl font-bold text-xs sm:text-sm shadow-xl transition-all cursor-pointer border ${
+        className={`h-11 px-4 rounded-xl border font-mono text-[11px] font-bold uppercase tracking-[0.09em] inline-flex items-center gap-2 transition-all duration-200 cursor-pointer ${
           isOpen
-            ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-            : 'bg-emerald-500 border-emerald-400 text-slate-950 hover:bg-emerald-400 shadow-emerald-500/30'
+            ? 'bg-white text-[#241E14] border-[#E6D496] hover:bg-[#FFF8DF] hover:border-[#F5B800] shadow-sm'
+            : 'bg-[#F5B800] text-[#241E14] border-[#DDA300] hover:bg-[#FACC15] hover:-translate-y-0.5 shadow-[0_8px_22px_-6px_rgba(234,179,8,0.55)]'
         }`}
       >
         {isOpen ? (
           <>
-            <X className="w-4 h-4 text-slate-400" />
-            <span>Close Assistant</span>
+            <X className="w-3.5 h-3.5" />
+            <span>CLOSE AI</span>
           </>
         ) : (
           <>
-            <MessageSquare className="w-4 h-4" />
-            <span>Ask PriceProof</span>
+            <MessageSquare className="w-3.5 h-3.5 text-[#241E14]" />
+            <span>✦ ASK AI</span>
           </>
         )}
       </button>
