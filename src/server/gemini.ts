@@ -3,7 +3,7 @@
  * Uses @google/genai strictly on the backend with GEMINI_API_KEY from process.env.
  */
 
-import { GoogleGenAI, ThinkingLevel, GenerateContentResponse } from '@google/genai';
+import { GoogleGenAI, ThinkingLevel } from '@google/genai';
 import { formatINR } from '../core/formatters.ts';
 
 export interface ChatHistoryMessage {
@@ -41,7 +41,8 @@ export interface ChatProductContext {
   offers?: ChatOfferSummary[];
 }
 
-const CHAT_MODEL = 'gemini-4-hydrogen';
+const PRIMARY_CHAT_MODEL = 'gemini-3.1-flash-lite';
+const FALLBACK_CHAT_MODEL = 'gemini-4-hydrogen';
 
 let cachedClient: GoogleGenAI | null = null;
 let cachedApiKey: string | undefined;
@@ -83,7 +84,12 @@ export function formatGeminiError(err: unknown): { status: number; message: stri
         'Chat assistant is unavailable because the Gemini API key is not configured in Settings > Secrets.',
     };
   }
-  if (lower.includes('api_key_invalid') || lower.includes('permission_denied') || lower.includes('403') || lower.includes('401')) {
+  if (
+    lower.includes('api_key_invalid') ||
+    lower.includes('permission_denied') ||
+    lower.includes('403') ||
+    lower.includes('401')
+  ) {
     return {
       status: 403,
       message:
@@ -97,7 +103,13 @@ export function formatGeminiError(err: unknown): { status: number; message: stri
         'Rate limit or quota reached for the Gemini API. Please wait a moment and try again.',
     };
   }
-  if (lower.includes('503') || lower.includes('unavailable') || lower.includes('high demand') || lower.includes('timed out')) {
+  if (
+    lower.includes('503') ||
+    lower.includes('unavailable') ||
+    lower.includes('high demand') ||
+    lower.includes('timed out') ||
+    lower.includes('abort')
+  ) {
     return {
       status: 503,
       message:
@@ -107,13 +119,13 @@ export function formatGeminiError(err: unknown): { status: number; message: stri
   if (lower.includes('not_found') || lower.includes('404')) {
     return {
       status: 502,
-      message: `Model "${CHAT_MODEL}" could not be reached. Please try again shortly.`,
+      message: 'The chat model could not be reached. Please try again shortly.',
     };
   }
 
   return {
     status: 500,
-    message: `Unable to generate a response right now. Please try again.`,
+    message: 'Unable to generate a response right now. Please try again.',
   };
 }
 
@@ -128,7 +140,7 @@ function buildSystemInstruction(context?: ChatProductContext): string {
     '4. Do NOT claim the cheapest offer is automatically best in every respect. Always weigh return windows, return shipping deductions, open-box restocking fees, and manufacturer vs. seller warranty differences.',
     '5. Clearly distinguish between Live API offers and Demo Catalog reference offers when citing data sources.',
     '6. Never fabricate product listings, prices, discounts, or URLs that are not in the provided context.',
-    '7. Keep responses concise, scannable, and well-structured using short paragraphs and bullet points (typically under 180 words unless the user asks for a deep dive).',
+    '7. Keep responses concise, scannable, and well-structured using short paragraphs and bullet points (typically under 160 words unless the user asks for a deep dive).',
   ];
 
   if (context?.offers && context.offers.length > 0) {
@@ -168,39 +180,14 @@ function buildSystemInstruction(context?: ChatProductContext): string {
   return baseInstructions.join('\n');
 }
 
-function isRetryableError(err: unknown): boolean {
-  const msg = (err instanceof Error ? err.message : String(err ?? '')).toLowerCase();
-  return (
-    msg.includes('503') ||
-    msg.includes('unavailable') ||
-    msg.includes('high demand') ||
-    msg.includes('fetch failed') ||
-    msg.includes('econnreset')
-  );
-}
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  return Promise.race([
-    promise.finally(() => clearTimeout(timer)),
-    new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error('Upstream Gemini request timed out')), timeoutMs);
-    }),
-  ]);
-}
-
 /**
- * Streams a multi-turn chat response from Gemini for a user message,
- * with brief exponential backoff retries on transient 503 unavailability.
+ * Ensures history strictly alternates user -> model -> user -> model
+ * and ends on a model turn so appending the new user message is always valid.
  */
-export async function streamShoppingAssistantReply(params: {
-  message: string;
-  history?: ChatHistoryMessage[];
-  context?: ChatProductContext;
-}): Promise<AsyncGenerator<GenerateContentResponse>> {
-  const ai = getGeminiClient();
-
-  const sanitizedHistory = (params.history || [])
+function sanitizeConversationHistory(
+  history?: ChatHistoryMessage[]
+): Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> {
+  const valid = (history || [])
     .filter(
       (item): item is ChatHistoryMessage =>
         Boolean(item) &&
@@ -208,41 +195,144 @@ export async function streamShoppingAssistantReply(params: {
         typeof item.text === 'string' &&
         item.text.trim().length > 0
     )
-    .slice(-14)
-    .map((item) => ({
-      role: item.role,
-      parts: [{ text: item.text.slice(0, 4000) }],
-    }));
+    .slice(-14);
 
-  const maxAttempts = 2;
+  const alternating: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
+  for (const item of valid) {
+    const prev = alternating[alternating.length - 1];
+    if (!prev) {
+      if (item.role !== 'user') continue;
+      alternating.push({ role: 'user', parts: [{ text: item.text.slice(0, 4000) }] });
+    } else if (prev.role === item.role) {
+      // Merge or replace duplicate consecutive role so alternation stays valid
+      prev.parts[0].text = `${prev.parts[0].text}\n${item.text.slice(0, 4000)}`.slice(0, 4000);
+    } else {
+      alternating.push({ role: item.role, parts: [{ text: item.text.slice(0, 4000) }] });
+    }
+  }
+
+  // History before a new user prompt must end with a model turn
+  while (alternating.length > 0 && alternating[alternating.length - 1].role !== 'model') {
+    alternating.pop();
+  }
+
+  return alternating;
+}
+
+function shouldFallbackModel(err: unknown): boolean {
+  const msg = (err instanceof Error ? err.message : String(err ?? '')).toLowerCase();
+  return (
+    msg.includes('429') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('quota') ||
+    msg.includes('503') ||
+    msg.includes('500') ||
+    msg.includes('unavailable') ||
+    msg.includes('high demand') ||
+    msg.includes('overloaded') ||
+    msg.includes('timed out') ||
+    msg.includes('timeout') ||
+    msg.includes('abort') ||
+    msg.includes('fetch failed') ||
+    msg.includes('econnreset')
+  );
+}
+
+async function generateWithTimeout(
+  ai: GoogleGenAI,
+  model: string,
+  contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }>,
+  systemInstruction: string,
+  timeoutMs: number
+): Promise<string> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      const err = new Error(`Upstream Gemini request (${model}) timed out after ${timeoutMs}ms`);
+      controller.abort(err);
+      reject(err);
+    }, timeoutMs);
+  });
+
+  try {
+    const requestPromise = ai.models.generateContent({
+      model,
+      contents,
+      config: {
+        systemInstruction,
+        abortSignal: controller.signal,
+        ...(model === 'gemini-4-hydrogen'
+          ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+          : {}),
+      },
+    });
+
+    const response = await Promise.race([requestPromise, timeoutPromise]);
+    const text = response.text?.trim();
+    if (!text) {
+      throw new Error(`Model ${model} returned an empty response.`);
+    }
+    return text;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Generates a multi-turn chat reply from Gemini for a user message.
+ * Uses gemini-3.1-flash-lite for low-latency interactive chat with exponential-backoff
+ * retries and automatic cross-model failover to gemini-4-hydrogen on transient 429/503 spikes.
+ */
+export async function generateShoppingAssistantReply(params: {
+  message: string;
+  history?: ChatHistoryMessage[];
+  context?: ChatProductContext;
+}): Promise<{ reply: string; model: string }> {
+  const ai = getGeminiClient();
+  const systemInstruction = buildSystemInstruction(params.context);
+  const sanitizedHistory = sanitizeConversationHistory(params.history);
+
+  const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [
+    ...sanitizedHistory,
+    {
+      role: 'user',
+      parts: [{ text: params.message.slice(0, 2000) }],
+    },
+  ];
+
+  const attempts: Array<{ model: string; timeoutMs: number; delayBeforeMs?: number }> = [
+    { model: PRIMARY_CHAT_MODEL, timeoutMs: 10000 },
+    { model: PRIMARY_CHAT_MODEL, timeoutMs: 10000, delayBeforeMs: 600 },
+    { model: FALLBACK_CHAT_MODEL, timeoutMs: 10000, delayBeforeMs: 700 },
+    { model: PRIMARY_CHAT_MODEL, timeoutMs: 12000, delayBeforeMs: 1400 },
+  ];
+
   let lastError: unknown;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let i = 0; i < attempts.length; i++) {
+    const attempt = attempts[i];
+    if (attempt.delayBeforeMs) {
+      await new Promise((resolve) => setTimeout(resolve, attempt.delayBeforeMs));
+    }
     try {
-      const chat = ai.chats.create({
-        model: CHAT_MODEL,
-        history: sanitizedHistory,
-        config: {
-          systemInstruction: buildSystemInstruction(params.context),
-          thinkingConfig: {
-            thinkingLevel: ThinkingLevel.LOW,
-          },
-        },
-      });
-
-      return await withTimeout(
-        chat.sendMessageStream({
-          message: params.message.slice(0, 2000),
-        }),
-        20000
+      const reply = await generateWithTimeout(
+        ai,
+        attempt.model,
+        contents,
+        systemInstruction,
+        attempt.timeoutMs
       );
+      return { reply, model: attempt.model };
     } catch (err: unknown) {
       lastError = err;
-      if (attempt < maxAttempts && isRetryableError(err)) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        continue;
+      const errSummary = err instanceof Error ? err.message.slice(0, 200) : String(err);
+      console.warn(
+        `[Chat API] Attempt ${i + 1}/${attempts.length} (${attempt.model}) failed: ${errSummary}`
+      );
+      if (!shouldFallbackModel(err)) {
+        throw err;
       }
-      throw err;
     }
   }
 

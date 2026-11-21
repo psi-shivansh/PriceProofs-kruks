@@ -18,11 +18,13 @@ interface ChatMessage {
   id: string;
   role: 'user' | 'model';
   text: string;
-  isStreaming?: boolean;
+  isLoading?: boolean;
   error?: string;
 }
 
 interface PriceProofChatbotProps {
+  isOpen: boolean;
+  onToggleOpen: () => void;
   currentQuery: string;
   searchResponse: SearchResultResponse | null;
   visibleOffers: Offer[];
@@ -30,16 +32,23 @@ interface PriceProofChatbotProps {
 }
 
 /**
- * Safe inline markdown renderer (bold **text** and inline `code`) without raw HTML injection.
+ * Safe inline markdown renderer (**bold**, *italic*, `code`) without raw HTML injection.
  */
 function renderInlineFormatting(line: string): React.ReactNode[] {
-  const parts = line.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  const parts = line.split(/(\*\*[^*]+\*\*|\*[^*\n]+\*|`[^`]+`)/g);
   return parts.map((part, idx) => {
     if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
       return (
         <strong key={idx} className="font-semibold text-white">
           {part.slice(2, -2)}
         </strong>
+      );
+    }
+    if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+      return (
+        <em key={idx} className="italic text-slate-300">
+          {part.slice(1, -1)}
+        </em>
       );
     }
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
@@ -60,11 +69,12 @@ function FormattedMessage({ text }: { text: string }) {
   const lines = text.split('\n');
   const blocks: React.ReactNode[] = [];
   let bulletBuffer: string[] = [];
+  let orderedBuffer: string[] = [];
 
   const flushBullets = (keyPrefix: number) => {
     if (bulletBuffer.length === 0) return;
     blocks.push(
-      <ul key={`list-${keyPrefix}`} className="list-disc pl-4 space-y-1 my-1.5">
+      <ul key={`ul-${keyPrefix}`} className="list-disc pl-4 space-y-1 my-1.5">
         {bulletBuffer.map((item, i) => (
           <li key={i} className="leading-relaxed">
             {renderInlineFormatting(item)}
@@ -75,14 +85,42 @@ function FormattedMessage({ text }: { text: string }) {
     bulletBuffer = [];
   };
 
+  const flushOrdered = (keyPrefix: number) => {
+    if (orderedBuffer.length === 0) return;
+    blocks.push(
+      <ol key={`ol-${keyPrefix}`} className="list-decimal pl-4 space-y-1 my-1.5">
+        {orderedBuffer.map((item, i) => (
+          <li key={i} className="leading-relaxed">
+            {renderInlineFormatting(item)}
+          </li>
+        ))}
+      </ol>
+    );
+    orderedBuffer = [];
+  };
+
   lines.forEach((rawLine, index) => {
     const trimmed = rawLine.trim();
     if (/^[-*•]\s+/.test(trimmed)) {
+      flushOrdered(index);
       bulletBuffer.push(trimmed.replace(/^[-*•]\s+/, ''));
+    } else if (/^\d+\.\s+/.test(trimmed)) {
+      flushBullets(index);
+      orderedBuffer.push(trimmed.replace(/^\d+\.\s+/, ''));
+    } else if (/^#{1,4}\s+/.test(trimmed)) {
+      flushBullets(index);
+      flushOrdered(index);
+      const headingText = trimmed.replace(/^#{1,4}\s+/, '').replace(/^\*\*|\*\*$/g, '');
+      blocks.push(
+        <h4 key={`h-${index}`} className="font-bold text-emerald-300 text-xs pt-1.5">
+          {renderInlineFormatting(headingText)}
+        </h4>
+      );
     } else {
       flushBullets(index);
+      flushOrdered(index);
       if (trimmed.length === 0) {
-        blocks.push(<div key={`gap-${index}`} className="h-1.5" />);
+        blocks.push(<div key={`gap-${index}`} className="h-1" />);
       } else {
         blocks.push(
           <p key={`p-${index}`} className="leading-relaxed">
@@ -94,18 +132,20 @@ function FormattedMessage({ text }: { text: string }) {
   });
 
   flushBullets(lines.length);
+  flushOrdered(lines.length);
   return <div className="space-y-1">{blocks}</div>;
 }
 
 export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
+  isOpen,
+  onToggleOpen,
   currentQuery,
   searchResponse,
   visibleOffers,
   hasFloatingCompareButton,
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null);
 
@@ -132,9 +172,15 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
   useEffect(() => {
     if (isOpen) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen, messages]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const timer = setTimeout(() => inputRef.current?.focus(), 100);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     return () => {
@@ -186,45 +232,64 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
     };
   };
 
-  const handleStopStreaming = () => {
+  const handleStopRequest = () => {
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
-    setIsStreaming(false);
+    setIsSending(false);
     setMessages((prev) =>
-      prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+      prev.map((m) =>
+        m.isLoading ? { ...m, isLoading: false, error: 'Request cancelled.' } : m
+      )
     );
   };
 
   const handleResetChat = () => {
-    handleStopStreaming();
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setIsSending(false);
     setMessages([]);
     setLastFailedPrompt(null);
     setInput('');
   };
 
-  const sendMessage = async (rawText: string) => {
+  const sendMessage = async (rawText: string, isRetry = false) => {
     const trimmed = rawText.trim();
-    if (!trimmed || isStreaming) return;
+    if (!trimmed || isSending) return;
 
     setLastFailedPrompt(null);
     setInput('');
 
+    // Build clean history only from completed user/model pairs (never include errored/orphan turns)
+    const baseMessages = isRetry
+      ? messages.slice(0, Math.max(0, messages.length - 2))
+      : messages;
+
+    const historyForRequest: Array<{ role: 'user' | 'model'; text: string }> = [];
+    for (let i = 0; i < baseMessages.length; i++) {
+      const m = baseMessages[i];
+      if (m.error || m.isLoading || !m.text.trim()) continue;
+      if (m.role === 'user') {
+        const next = baseMessages[i + 1];
+        if (next && next.role === 'model' && !next.error && !next.isLoading && next.text.trim()) {
+          historyForRequest.push({ role: 'user', text: m.text });
+          historyForRequest.push({ role: 'model', text: next.text });
+        }
+      }
+    }
+
     const userMsgId = `user-${Date.now()}`;
     const assistantMsgId = `model-${Date.now() + 1}`;
 
-    const historyForRequest = messages
-      .filter((m) => !m.error && m.text.trim().length > 0)
-      .map((m) => ({ role: m.role, text: m.text }));
-
-    setMessages((prev) => [
-      ...prev,
+    setMessages([
+      ...baseMessages,
       { id: userMsgId, role: 'user', text: trimmed },
-      { id: assistantMsgId, role: 'model', text: '', isStreaming: true },
+      { id: assistantMsgId, role: 'model', text: '', isLoading: true },
     ]);
 
-    setIsStreaming(true);
+    setIsSending(true);
     const controller = new AbortController();
     abortControllerRef.current = controller;
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     try {
       const response = await fetch('/api/chat', {
@@ -238,103 +303,48 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        let errorText = `Request failed with status ${response.status}.`;
-        try {
-          const errJson = await response.json();
-          if (errJson?.error) errorText = errJson.error;
-        } catch {
-          // Use default status error message
-        }
-        throw new Error(errorText);
+      clearTimeout(timeoutId);
+
+      let payload: { success?: boolean; reply?: string; error?: string } | null = null;
+      try {
+        payload = await response.json();
+      } catch {
+        payload = null;
       }
 
-      if (!response.body) {
-        throw new Error('Streaming response body was empty.');
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let receivedAnyText = false;
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || '';
-
-        for (const eventChunk of events) {
-          const dataLines = eventChunk
-            .split('\n')
-            .filter((l) => l.startsWith('data:'))
-            .map((l) => l.slice(5).trim());
-
-          for (const jsonLine of dataLines) {
-            if (!jsonLine) continue;
-            const payload = JSON.parse(jsonLine) as {
-              text?: string;
-              done?: boolean;
-              error?: string;
-            };
-
-            if (payload.error) {
-              throw new Error(payload.error);
-            }
-
-            if (payload.text) {
-              receivedAnyText = true;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === assistantMsgId ? { ...m, text: m.text + payload.text } : m
-                )
-              );
-            }
-          }
-        }
-      }
-
-      if (!receivedAnyText) {
-        throw new Error('The assistant returned an empty response. Please try again.');
+      if (!response.ok || !payload?.success || !payload.reply) {
+        throw new Error(
+          payload?.error || `Assistant request failed (HTTP ${response.status}). Please try again.`
+        );
       }
 
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === assistantMsgId ? { ...m, isStreaming: false } : m
+          m.id === assistantMsgId
+            ? { ...m, text: payload!.reply!, isLoading: false }
+            : m
         )
       );
     } catch (err: unknown) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMsgId
-              ? {
-                  ...m,
-                  isStreaming: false,
-                  text: m.text || 'Response stopped.',
-                }
-              : m
-          )
-        );
-      } else {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Unable to reach the PriceProof assistant right now.';
-        setLastFailedPrompt(trimmed);
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMsgId
-              ? { ...m, isStreaming: false, error: message }
-              : m
-          )
-        );
-      }
+      clearTimeout(timeoutId);
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      const errorMessage = isAbort
+        ? 'The request took too long or was cancelled. Please try again.'
+        : err instanceof Error
+        ? err.message
+        : 'Unable to reach the PriceProof assistant right now.';
+
+      setLastFailedPrompt(trimmed);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? { ...m, isLoading: false, error: errorMessage }
+            : m
+        )
+      );
     } finally {
       abortControllerRef.current = null;
-      setIsStreaming(false);
+      setIsSending(false);
     }
   };
 
@@ -345,7 +355,7 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
 
   return (
     <div
-      className={`fixed right-5 z-40 flex flex-col items-end ${
+      className={`fixed right-5 z-50 flex flex-col items-end ${
         hasFloatingCompareButton ? 'bottom-20' : 'bottom-5'
       }`}
     >
@@ -392,7 +402,7 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
               )}
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
+                onClick={onToggleOpen}
                 title="Minimize assistant"
                 aria-label="Minimize assistant"
                 className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
@@ -432,7 +442,7 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
                     key={prompt}
                     type="button"
                     onClick={() => sendMessage(prompt)}
-                    disabled={isStreaming}
+                    disabled={isSending}
                     className="text-left text-[11px] px-2.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/40 text-slate-300 hover:text-emerald-300 transition-all cursor-pointer"
                   >
                     {prompt}
@@ -442,8 +452,9 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
             )}
 
             {/* Chat History */}
-            {messages.map((msg) => {
+            {messages.map((msg, idx) => {
               const isUser = msg.role === 'user';
+              const isLatestMessage = idx === messages.length - 1;
               return (
                 <div
                   key={msg.id}
@@ -468,17 +479,17 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
                           <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
                           <span>{msg.error}</span>
                         </div>
-                        {lastFailedPrompt && (
+                        {isLatestMessage && lastFailedPrompt && (
                           <button
                             type="button"
-                            onClick={() => sendMessage(lastFailedPrompt)}
+                            onClick={() => sendMessage(lastFailedPrompt, true)}
                             className="text-[11px] font-semibold text-white underline hover:no-underline cursor-pointer"
                           >
                             Try again
                           </button>
                         )}
                       </div>
-                    ) : msg.isStreaming && !msg.text ? (
+                    ) : msg.isLoading ? (
                       <div className="flex items-center gap-2 text-slate-400 py-0.5">
                         <Loader2 className="w-3.5 h-3.5 animate-spin text-emerald-400" />
                         <span>Analyzing offers & fees...</span>
@@ -486,12 +497,7 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
                     ) : isUser ? (
                       <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                     ) : (
-                      <div>
-                        <FormattedMessage text={msg.text} />
-                        {msg.isStreaming && (
-                          <span className="inline-block w-1.5 h-3.5 ml-1 bg-emerald-400 animate-pulse align-middle" />
-                        )}
-                      </div>
+                      <FormattedMessage text={msg.text} />
                     )}
                   </div>
                 </div>
@@ -511,16 +517,16 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask about fees, returns, or best value..."
-              disabled={isStreaming}
+              disabled={isSending}
               aria-label="Message PriceProof Assistant"
               className="flex-1 h-10 px-3.5 rounded-xl bg-slate-900 border border-slate-800 focus:border-emerald-500 text-xs text-white placeholder-slate-400 outline-none transition-colors"
             />
-            {isStreaming ? (
+            {isSending ? (
               <button
                 type="button"
-                onClick={handleStopStreaming}
-                title="Stop generating"
-                aria-label="Stop generating"
+                onClick={handleStopRequest}
+                title="Cancel request"
+                aria-label="Cancel request"
                 className="h-10 w-10 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
               >
                 <Square className="w-3.5 h-3.5 fill-current" />
@@ -543,13 +549,13 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
       {/* Floating Launcher Button */}
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={onToggleOpen}
         aria-expanded={isOpen}
         aria-label={isOpen ? 'Close PriceProof Assistant' : 'Open PriceProof Assistant'}
         className={`flex items-center gap-2.5 px-4 py-3 rounded-2xl font-bold text-xs sm:text-sm shadow-xl transition-all cursor-pointer border ${
           isOpen
             ? 'bg-slate-900 border-slate-700 text-slate-200 hover:bg-slate-800'
-            : 'bg-slate-900 border-emerald-500/50 text-white hover:border-emerald-400 shadow-emerald-500/20'
+            : 'bg-emerald-500 border-emerald-400 text-slate-950 hover:bg-emerald-400 shadow-emerald-500/30'
         }`}
       >
         {isOpen ? (
@@ -559,11 +565,7 @@ export const PriceProofChatbot: React.FC<PriceProofChatbotProps> = ({
           </>
         ) : (
           <>
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-            </span>
-            <MessageSquare className="w-4 h-4 text-emerald-400" />
+            <MessageSquare className="w-4 h-4" />
             <span>Ask PriceProof</span>
           </>
         )}

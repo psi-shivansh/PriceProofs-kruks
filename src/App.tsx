@@ -53,6 +53,7 @@ export default function App() {
   const [isCompareMatrixOpen, setIsCompareMatrixOpen] = useState(false);
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [isJudgePitchOpen, setIsJudgePitchOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Filters & Sorting
   const [sortBy, setSortBy] = useState<SortOption>('TOTAL_COST_ASC');
@@ -193,6 +194,7 @@ export default function App() {
       <Navbar
         onOpenDiagnostics={() => setIsDiagnosticsOpen(true)}
         onOpenJudgePitch={() => setIsJudgePitchOpen(true)}
+        onOpenChat={() => setIsChatOpen((prev) => !prev)}
         diagnostics={diagnostics}
         totalOffers={searchResponse?.totalOffers || 0}
       />
@@ -425,6 +427,8 @@ export default function App() {
 
       {/* Context-Aware Shopping Assistant Chatbot */}
       <PriceProofChatbot
+        isOpen={isChatOpen}
+        onToggleOpen={() => setIsChatOpen((prev) => !prev)}
         currentQuery={query}
         searchResponse={searchResponse}
         visibleOffers={processedProductGroups.flatMap((g) => g.offers)}

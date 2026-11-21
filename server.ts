@@ -13,7 +13,7 @@ import {
   ChatHistoryMessage,
   ChatProductContext,
   formatGeminiError,
-  streamShoppingAssistantReply,
+  generateShoppingAssistantReply,
 } from './src/server/gemini.ts';
 
 dotenv.config();
@@ -109,11 +109,11 @@ app.get('/api/search', async (req: Request, res: Response) => {
 });
 
 /**
- * AI Shopping Assistant Chat Endpoint (SSE Streaming)
+ * AI Shopping Assistant Chat Endpoint
  * POST /api/chat
  */
 app.post('/api/chat', async (req: Request, res: Response) => {
-  const { message, history, context } = req.body as {
+  const { message, history, context } = (req.body || {}) as {
     message?: unknown;
     history?: ChatHistoryMessage[];
     context?: ChatProductContext;
@@ -127,50 +127,26 @@ app.post('/api/chat', async (req: Request, res: Response) => {
     return;
   }
 
-  let clientClosed = false;
-  res.on('close', () => {
-    if (!res.writableEnded) {
-      clientClosed = true;
-    }
-  });
-
   try {
-    const stream = await streamShoppingAssistantReply({
+    const result = await generateShoppingAssistantReply({
       message: message.trim(),
       history: Array.isArray(history) ? history : [],
       context,
     });
 
-    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    res.setHeader('Cache-Control', 'no-cache, no-transform');
-    res.setHeader('Connection', 'keep-alive');
-    res.flushHeaders?.();
-
-    for await (const chunk of stream) {
-      if (clientClosed) break;
-      const chunkText = chunk.text;
-      if (chunkText) {
-        res.write(`data: ${JSON.stringify({ text: chunkText })}\n\n`);
-      }
-    }
-
-    if (!clientClosed) {
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-      res.end();
-    }
+    res.json({
+      success: true,
+      reply: result.reply,
+      model: result.model,
+    });
   } catch (err: unknown) {
     console.error('[Chat API Error]:', err);
     const formatted = formatGeminiError(err);
 
-    if (!res.headersSent) {
-      res.status(formatted.status).json({
-        success: false,
-        error: formatted.message,
-      });
-    } else if (!clientClosed) {
-      res.write(`data: ${JSON.stringify({ error: formatted.message })}\n\n`);
-      res.end();
-    }
+    res.status(formatted.status).json({
+      success: false,
+      error: formatted.message,
+    });
   }
 });
 

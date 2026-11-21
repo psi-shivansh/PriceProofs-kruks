@@ -1,10 +1,11 @@
 import React from 'react';
-import { ShieldCheck, Database, Info, Sparkles, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Database, Sparkles, MessageSquare } from 'lucide-react';
 import { ProviderDiagnostic } from '../types/product.ts';
 
 interface NavbarProps {
   onOpenDiagnostics: () => void;
   onOpenJudgePitch: () => void;
+  onOpenChat: () => void;
   diagnostics: ProviderDiagnostic[];
   totalOffers: number;
 }
@@ -12,6 +13,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenDiagnostics,
   onOpenJudgePitch,
+  onOpenChat,
   diagnostics,
   totalOffers,
 }) => {
@@ -47,15 +49,27 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Right CTA & Diagnostics */}
         <div className="flex items-center gap-2.5">
           <button
+            type="button"
+            onClick={onOpenChat}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-all cursor-pointer shadow-sm shadow-emerald-500/20"
+            title="Ask PriceProof AI Assistant"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>AI Assistant</span>
+          </button>
+
+          <button
+            type="button"
             onClick={onOpenJudgePitch}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 hover:border-emerald-400 text-xs text-emerald-300 font-semibold transition-all cursor-pointer shadow-sm shadow-emerald-500/10"
             title="Pitch Guide, Demo Walkthrough & Hosting Links"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden sm:inline">Judges Pitch &</span> Demo Walkthrough
+            <span className="hidden sm:inline">Judges Pitch &</span> Demo
           </button>
 
           <button
+            type="button"
             onClick={onOpenDiagnostics}
             className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-800 bg-slate-900/80 hover:bg-slate-850 hover:border-slate-700 text-xs text-slate-300 transition-all cursor-pointer"
             title="Inspect Data Sources & API Integrations"
